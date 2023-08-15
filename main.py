@@ -9,7 +9,7 @@ from torch.utils.data import DataLoader
 from torchvision import transforms
 from torchvision.datasets import ImageFolder
 
-from models import ResNet18
+from models import PROVIDED_MODELS
 from utils import save, load
 
 ##########################
@@ -19,10 +19,8 @@ from utils import save, load
 # USE_DATA_FOLDER = "Caltech-256"
 USE_DATA_FOLDER = "Sampled_ImageNet"
 
-USE_MODEL = "ResNet18"
-
-model_dict = dict()
-model_dict["ResNet18"] = ResNet18
+# USE_MODEL = "ResNet18"
+USE_MODEL = "TestResNet18"
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
@@ -101,7 +99,7 @@ eval_minor_loader = DataLoader(
 # Model, loss and optimizer
 ##########################
 
-model = model_dict[USE_MODEL](num_classes).to(device)
+model = PROVIDED_MODELS[USE_MODEL](num_classes).to(device)
 criterion = nn.CrossEntropyLoss()
 optimizer = optim.Adam(model.parameters(), lr=learning_rate)
 

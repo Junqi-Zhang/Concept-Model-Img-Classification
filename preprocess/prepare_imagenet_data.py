@@ -16,7 +16,7 @@ SAMPLED_IMAGENET_DATA_FOLDER = "../data/Sampled_ImageNet/"
 if os.path.exists(SAMPLED_IMAGENET_DATA_FOLDER):
     shutil.rmtree(SAMPLED_IMAGENET_DATA_FOLDER)
 os.makedirs(SAMPLED_IMAGENET_DATA_FOLDER)
-########## 清空采样结果文件夹 Start ##########
+########## 清空采样结果文件夹 Finish ##########
 
     
 ########## 类别采样 Start ##########
@@ -27,7 +27,7 @@ sampled_class_codes = random.sample(
     class_codes, SAMPLED_MAJOR_CLASS_NUM+SAMPLED_MINOR_CLASS_NUM)
 sampled_major_class_codes = sampled_class_codes[:SAMPLED_MAJOR_CLASS_NUM]
 sampled_minor_class_codes = sampled_class_codes[-SAMPLED_MINOR_CLASS_NUM:]
-########## 类别采样 Start ##########
+########## 类别采样 Finish ##########
 
 
 ########## 类别采样正确性检查 Start ##########
@@ -42,7 +42,7 @@ for code in sampled_minor_class_codes:
 
 for code in sampled_major_class_codes:
     assert code not in sampled_minor_class_codes
-########## 类别采样正确性检查 FINISH ##########
+########## 类别采样正确性检查 Finish ##########
 
 
 ########## train data 采样 Start ##########
@@ -86,7 +86,7 @@ for i, file_name in tqdm(enumerate(all_train_img_file_names), total=len(all_trai
         break
 
 print(f"Finish Sampling {sampled_train_img_num} train images in total.")
-########## train data 采样 FINISH ##########
+########## train data 采样 Finish ##########
 
 
 ########## val data 按类抽取 Start ##########
@@ -131,5 +131,4 @@ for i, file_name in tqdm(enumerate(all_val_img_file_names), total=len(all_val_im
 print(f"Finish Sampling {sampled_val_img_num} val images in total,")
 print(f"in which {sampled_major_val_img_num} are in major classes,")
 print(f"and {sampled_minor_val_img_num} are in minor classes.")
-    
-########## val data 按类抽取 FINISH ##########
+########## val data 按类抽取 Finish ##########

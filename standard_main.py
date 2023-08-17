@@ -116,13 +116,20 @@ def compute_loss(returned_dict, targets):
 
     # 熵越小, 分布越不均匀
     attention_entropy = torch.mean(-torch.sum(attention_weights *
-                                    torch.log2(attention_weights), dim=1))
-    
-    # 对角线元素一定是1, 迫使非对角线元素为0, 等价于最小化绝对值均值
-    concept_diversity_reg = torch.mean(torch.abs(concept_similarity))
-    
-    # return criterion(outputs, targets) + attention_entropy + concept_diversity_reg
-    # return criterion(outputs, targets) + concept_diversity_reg
+                                              torch.log2(attention_weights), dim=1))
+
+    # 防止 concept 退化, concept 之间要近似正交
+    def concept_diversity_reg():
+        # ideal_similarity 可以调整, 单位阵的假设过强
+        ideal_similarity = torch.eye(
+            num_concepts,
+            dtype=torch.float,
+            device=device
+        )
+        return torch.norm(concept_similarity-ideal_similarity)
+
+    # return criterion(outputs, targets) + attention_entropy + concept_diversity_reg()
+    # return criterion(outputs, targets) + concept_diversity_reg()
     return criterion(outputs, targets)
 
 

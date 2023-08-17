@@ -1,5 +1,6 @@
 import os
 import time
+import argparse
 from tqdm import tqdm
 
 import torch
@@ -9,35 +10,60 @@ from torch.utils.data import DataLoader
 from torchvision import transforms
 from torchvision.datasets import ImageFolder
 
+from data_folders import PROVIDED_DATA_FOLDERS
 from models import PROVIDED_MODELS
 from utils import save, load
+
+
+##########################
+# Argument parsing
+##########################
+
+parser = argparse.ArgumentParser(
+    description="Test model's ability to overfit a tiny dataset."
+)
+
+parser.add_argument("--data_folder", required=True)
+parser.add_argument("--model", required=True)
+parser.add_argument("--num_concepts", default=64, type=int)
+parser.add_argument("--num_epochs", default=100, type=int)
+parser.add_argument("--batch_size", default=256, type=int)
+
+args = parser.parse_args()
 
 ##########################
 # Basic settings
 ##########################
 
-# USE_DATA_FOLDER = "Caltech-256"
-# USE_DATA_FOLDER = "Sampled_ImageNet"
-USE_DATA_FOLDER = "Sampled_ImageNet_Val"
-
-# USE_MODEL = "ResNet18"
-USE_MODEL = "BasicQuantResNet18"
-
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
-num_classes = 250
-num_concepts = 250
-n_epoch = 100
-batch_size = 256
+use_data_folder = args.data_folder
+use_data_folder_info = PROVIDED_DATA_FOLDERS[use_data_folder]
+num_classes = use_data_folder_info["num_classes"]
+
+use_model = args.model
+num_concepts = args.num_concepts
+n_epoch = args.num_epochs
+batch_size = args.batch_size
 learning_rate = 1e-3
 
-# 在 Caltech-256 上训练并测试
-train_data = os.path.join("./data/", USE_DATA_FOLDER)
-eval_data = os.path.join("./data/", USE_DATA_FOLDER)
+# Confirm basic settings
+print("#"*60)
+print(f"# Use data_folder: {use_data_folder}, {num_classes} classes in total.")
+print(f"# Use model: {use_model}, includes {num_concepts} concepts.")
+print(f"# Train up to {n_epoch} epochs, with barch_size={batch_size}.")
 
-_time = time.strftime("%Y%m%d%H", time.localtime(time.time()))
+# 使用相同一个tiny数据集训练并验证
+train_data = use_data_folder_info["train_folder_path"]
+print(f"# Train on data from {train_data}.")
+eval_data = use_data_folder_info["val_folder_path"]
+print(f"# Evaluate on data from {eval_data}.")
+print("#"*60)
 
-checkpoint_dir = os.path.join("./logs/", USE_DATA_FOLDER, USE_MODEL, _time)
+_time = time.strftime("%Y%m%d%H%M", time.localtime(time.time()))
+
+checkpoint_dir = os.path.join(
+    "./checkpoints/", use_data_folder, use_model, _time)
 if not os.path.exists(checkpoint_dir):
     os.makedirs(checkpoint_dir)
 
@@ -70,7 +96,7 @@ eval_loader = DataLoader(
 # Model, loss and optimizer
 ##########################
 
-model = PROVIDED_MODELS[USE_MODEL](num_classes, num_concepts).to(device)
+model = PROVIDED_MODELS[use_model](num_classes, num_concepts).to(device)
 criterion = nn.CrossEntropyLoss()
 
 
@@ -82,7 +108,7 @@ def compute_loss(returned_dict, targets):
     concept_similarity = returned_dict.get("concept_similarity", None)
 
     if (attention_weights is None) and (concept_similarity is None):
-        return criterion(outputs, targets)
+        return criterion(outputs, targets), torch.tensor(0.0), torch.tensor(0.0)
 
     # 熵越小, 分布越不均匀
     attention_entropy = torch.mean(-torch.sum(attention_weights *
@@ -98,9 +124,13 @@ def compute_loss(returned_dict, targets):
         )
         return torch.norm(concept_similarity-ideal_similarity)
 
-    # return criterion(outputs, targets) + attention_entropy + concept_diversity_reg()
-    return criterion(outputs, targets) + concept_diversity_reg()
-    # return criterion(outputs, targets)
+    concept_regularization = concept_diversity_reg()
+
+    # loss = criterion(outputs, targets) + attention_entropy + concept_regularization
+    # loss = criterion(outputs, targets) + concept_regularization
+    loss = criterion(outputs, targets)
+
+    return loss, attention_entropy, concept_regularization
 
 
 optimizer = optim.Adam(model.parameters(), lr=learning_rate)
@@ -117,7 +147,13 @@ def run_epoch(desc, model, dataloader, train=False):
     else:
         model.eval()
 
-    metric_dict = {"loss": 0.0, "acc": 0.0}
+    metric_dict = {
+        "loss": 0.0,
+        "loss_entropy": 0.0,
+        "loss_reg": 0.0,
+        "acc": 0.0
+    }
+
     step = 0
     with tqdm(
         total=len(dataloader),
@@ -133,7 +169,9 @@ def run_epoch(desc, model, dataloader, train=False):
             # forward pass
             if train:
                 returned_dict = model(data)
-                loss = compute_loss(returned_dict, targets)
+                loss, loss_entropy, loss_reg = compute_loss(
+                    returned_dict, targets
+                )
 
                 # backward pass
                 optimizer.zero_grad()
@@ -142,7 +180,9 @@ def run_epoch(desc, model, dataloader, train=False):
             else:
                 with torch.no_grad():
                     returned_dict = model(data)
-                    loss = compute_loss(returned_dict, targets)
+                    loss, loss_entropy, loss_reg = compute_loss(
+                        returned_dict, targets
+                    )
 
             # display the metrics
             with torch.no_grad():
@@ -150,18 +190,25 @@ def run_epoch(desc, model, dataloader, train=False):
                                     1) == targets).sum() / targets.size(0)
             metric_dict["loss"] = (metric_dict["loss"] *
                                    step + loss.item()) / (step + 1)
+            metric_dict["loss_entropy"] = (metric_dict["loss_entropy"] *
+                                           step + loss_entropy.item()) / (step + 1)
+            metric_dict["loss_reg"] = (metric_dict["loss_reg"] *
+                                       step + loss_reg.item()) / (step + 1)
             metric_dict["acc"] = (metric_dict["acc"] *
                                   step + acc.item()) / (step + 1)
             pbar.set_postfix(
                 **{
                     "loss": metric_dict["loss"],
-                    "acc": metric_dict["acc"],
+                    "loss_entropy": metric_dict["loss_entropy"],
+                    "loss_reg": metric_dict["loss_reg"],
+                    "acc": metric_dict["acc"]
                 }
             )
             pbar.update(1)
 
             step += 1
     return metric_dict
+
 
 for epoch in range(n_epoch):
     # train one epoch
@@ -181,3 +228,6 @@ for epoch in range(n_epoch):
         eval_dict["acc"]
     )
     save(model, os.path.join(checkpoint_dir, model_name))
+
+    if eval_dict["acc"] > 0.95:
+        break

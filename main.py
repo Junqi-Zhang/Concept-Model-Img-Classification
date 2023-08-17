@@ -20,12 +20,13 @@ from utils import save, load
 USE_DATA_FOLDER = "Sampled_ImageNet"
 
 # USE_MODEL = "ResNet18"
-USE_MODEL = "TestResNet18"
+USE_MODEL = "BasicQuantResNet18"
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
-num_classes = 256
-n_epoch = 100
+num_classes = 250
+num_concepts = 64
+n_epoch = 20
 batch_size = 256
 learning_rate = 1e-3
 
@@ -99,8 +100,32 @@ eval_minor_loader = DataLoader(
 # Model, loss and optimizer
 ##########################
 
-model = PROVIDED_MODELS[USE_MODEL](num_classes).to(device)
+model = PROVIDED_MODELS[USE_MODEL](num_classes, num_concepts).to(device)
 criterion = nn.CrossEntropyLoss()
+
+
+def compute_loss(returned_dict, targets):
+    outputs = returned_dict["outputs"]
+
+    # 代码兼容 ResNet18
+    attention_weights = returned_dict.get("attention_weights", None)
+    concept_similarity = returned_dict.get("concept_similarity", None)
+
+    if (attention_weights is None) and (concept_similarity is None):
+        return criterion(outputs, targets)
+
+    # 熵越小, 分布越不均匀
+    attention_entropy = torch.mean(-torch.sum(attention_weights *
+                                    torch.log2(attention_weights), dim=1))
+    
+    # 对角线元素一定是1, 迫使非对角线元素为0, 等价于最小化绝对值均值
+    concept_diversity_reg = torch.mean(torch.abs(concept_similarity))
+    
+    # return criterion(outputs, targets) + attention_entropy + concept_diversity_reg
+    # return criterion(outputs, targets) + concept_diversity_reg
+    return criterion(outputs, targets)
+
+
 optimizer = optim.Adam(model.parameters(), lr=learning_rate)
 
 ##########################
@@ -130,8 +155,8 @@ def run_epoch(desc, model, dataloader, train=False):
 
             # forward pass
             if train:
-                outputs = model(data)
-                loss = criterion(outputs, targets)
+                returned_dict = model(data)
+                loss = compute_loss(returned_dict, targets)
 
                 # backward pass
                 optimizer.zero_grad()
@@ -139,13 +164,13 @@ def run_epoch(desc, model, dataloader, train=False):
                 optimizer.step()
             else:
                 with torch.no_grad():
-                    outputs = model(data)
-                    loss = criterion(outputs, targets)
+                    returned_dict = model(data)
+                    loss = compute_loss(returned_dict, targets)
 
             # display the metrics
             with torch.no_grad():
-                acc = (torch.argmax(outputs.data, 1) ==
-                       targets).sum() / targets.size(0)
+                acc = (torch.argmax(returned_dict["outputs"].data, 
+                                    1) == targets).sum() / targets.size(0)
             metric_dict["loss"] = (metric_dict["loss"] *
                                    step + loss.item()) / (step + 1)
             metric_dict["acc"] = (metric_dict["acc"] *

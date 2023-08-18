@@ -1,8 +1,10 @@
 import os
+import json
 import time
 import argparse
 from tqdm import tqdm
 
+import numpy as np  # 在 import torch 前
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -35,7 +37,10 @@ parser.add_argument("--batch_size", default=256, type=int)
 
 parser.add_argument("--save_interval", default=1, type=int)
 
-parser.add_argument("--task_description", default=None)
+# 以下参数以(arg.参数名)的方式进行调用
+parser.add_argument("--supplementary_description", default=None)
+parser.add_argument("--summary_log_path", required=True)
+parser.add_argument("--detailed_log_path", required=True)
 
 args = parser.parse_args()
 
@@ -68,7 +73,7 @@ if not os.path.exists(checkpoint_dir):
 
 # Confirm basic settings
 print("\n"+"#"*100)
-print(f"# {args.task_description}")
+print(f"# Desc: {args.supplementary_description}")
 print(f"# Use data_folder: {use_data_folder}, {num_classes} classes in total.")
 print(f"# Use model: {use_model}, includes {num_concepts} concepts.")
 print(f"# Weight for concept  sparsity loss is {loss_sparsity_weight:.4f}.")
@@ -238,6 +243,13 @@ def run_epoch(desc, model, dataloader, train=False):
     return metric_dict
 
 
+early_stopped = False
+early_stop_counter = 3
+
+best_val_acc = 0
+best_epoch = 0
+best_checkpoint_path = ""
+
 for epoch in range(n_epoch):
     # train one epoch
     desc = f"Training epoch {epoch + 1}/{n_epoch}"
@@ -258,16 +270,55 @@ for epoch in range(n_epoch):
     ]
     model_name = "_".join(model_name_elements) + ".pt"
 
+    if eval_dict['acc'] > best_val_acc:
+        best_val_acc = eval_dict['acc']
+        best_epoch = epoch + 1
+        best_checkpoint_path = os.path.join(checkpoint_dir, model_name)
+
     if epoch % save_interval == 0:
         save(model, os.path.join(checkpoint_dir, model_name))
 
-    early_stop_counter = 3
     if eval_dict["acc"] > 0.95:
         early_stop_counter -= 1
 
     if early_stop_counter == 0:
-        print("Early stopped.")
+        early_stopped = True
         break
 
 save(model, os.path.join(checkpoint_dir, model_name))
-print("END.")
+save(model, best_checkpoint_path)
+
+if early_stopped:
+    print("Early stopped.")
+else:
+    print("Normal stopped.")
+
+#####################################
+# Save summary and detailed logs
+#####################################
+
+log_elements = {
+    "date": time.strftime("%Y%m%d", time.localtime(time.time())),
+    "mode": "overfit",
+    "data_folder": use_data_folder,
+    "model": use_model,
+    "num_concepts": num_concepts,
+    "loss_sparsity_weight": loss_sparsity_weight,
+    "loss_diversity_weight": loss_diversity_weight,
+    "supplementary_description": args.supplementary_description,
+    "num_epochs": num_epochs,
+    "batch_size": batch_size,
+    "learning_rate": learning_rate,
+    "save_interval": save_interval,
+    "checkpoint_dir": checkpoint_dir,
+    "best_val_acc": best_val_acc,
+    "best_epoch": best_epoch,
+    "best_checkpoint_path": best_checkpoint_path,
+    "detailed_log_path": args.detailed_log_path
+}
+
+with open(args.summary_log_path, "a") as f:
+    f.write(json.dumps(log_elements))
+    f.write("\n")
+
+print("END. Checkpoints and logs are saved.")

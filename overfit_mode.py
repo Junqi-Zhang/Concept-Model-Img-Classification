@@ -286,7 +286,6 @@ for epoch in range(n_epoch):
         break
 
 save(model, os.path.join(checkpoint_dir, model_name))
-save(model, best_checkpoint_path)
 
 if early_stopped:
     print("Early stopped.")

@@ -297,6 +297,9 @@ else:
 # Save summary and detailed logs
 #####################################
 
+print(f"Summary log to be saved in {args.summary_log_path}")
+print(f"Detailed log to be saved in {args.detailed_log_path}")
+
 log_elements = {
     "date": time.strftime("%Y%m%d", time.localtime(time.time())),
     "mode": "overfit",
@@ -306,7 +309,7 @@ log_elements = {
     "loss_sparsity_weight": loss_sparsity_weight,
     "loss_diversity_weight": loss_diversity_weight,
     "supplementary_description": args.supplementary_description,
-    "num_epochs": num_epochs,
+    "num_epochs": n_epoch,
     "batch_size": batch_size,
     "learning_rate": learning_rate,
     "save_interval": save_interval,

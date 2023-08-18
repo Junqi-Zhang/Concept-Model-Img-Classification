@@ -72,7 +72,7 @@ def generate_command(task_elements, excute=False):
         detailed_log_dir,
         "_".join(
             [
-                "detailed",
+                "details",
                 "at",
                 time.strftime("%Y%m%d%H%M%S", time.localtime(time.time()))
             ]

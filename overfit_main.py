@@ -24,10 +24,18 @@ parser = argparse.ArgumentParser(
 )
 
 parser.add_argument("--data_folder", required=True)
+
 parser.add_argument("--model", required=True)
 parser.add_argument("--num_concepts", default=64, type=int)
+parser.add_argument("--loss_sparsity_weight", default=0.0, type=float)
+parser.add_argument("--loss_diversity_weight", default=0.0, type=float)
+
 parser.add_argument("--num_epochs", default=100, type=int)
 parser.add_argument("--batch_size", default=256, type=int)
+
+parser.add_argument("--save_interval", default=1, type=int)
+
+parser.add_argument("--descriptiopn", default=None)
 
 args = parser.parse_args()
 
@@ -43,29 +51,38 @@ num_classes = use_data_folder_info["num_classes"]
 
 use_model = args.model
 num_concepts = args.num_concepts
+loss_sparsity_weight = args.loss_sparsity_weight
+loss_diversity_weight = args.loss_diversity_weight
+
 n_epoch = args.num_epochs
 batch_size = args.batch_size
 learning_rate = 1e-3
 
+save_interval = args.save_interval
+
+_time = time.strftime("%Y%m%d%H%M", time.localtime(time.time()))
+checkpoint_dir = os.path.join(
+    "./checkpoints/", use_data_folder, use_model, _time)
+if not os.path.exists(checkpoint_dir):
+    os.makedirs(checkpoint_dir)
+
 # Confirm basic settings
-print("#"*60)
+print("\n"+"#"*60)
 print(f"# Use data_folder: {use_data_folder}, {num_classes} classes in total.")
 print(f"# Use model: {use_model}, includes {num_concepts} concepts.")
+print(f"# Weight for concept  sparsity loss is {loss_sparsity_weight:.4f}.")
+print(f"# Weight for concept diversity loss is {loss_diversity_weight:.4f}.")
 print(f"# Train up to {n_epoch} epochs, with barch_size={batch_size}.")
+print(f"# Save model's checkpoint for every {save_interval} epochs,")
+print(f"# checkpoints locate in {checkpoint_dir}.")
+print("#"*60)
 
 # 使用相同一个tiny数据集训练并验证
 train_data = use_data_folder_info["train_folder_path"]
 print(f"# Train on data from {train_data}.")
 eval_data = use_data_folder_info["val_folder_path"]
 print(f"# Evaluate on data from {eval_data}.")
-print("#"*60)
-
-_time = time.strftime("%Y%m%d%H%M", time.localtime(time.time()))
-
-checkpoint_dir = os.path.join(
-    "./checkpoints/", use_data_folder, use_model, _time)
-if not os.path.exists(checkpoint_dir):
-    os.makedirs(checkpoint_dir)
+print("#"*60+"\n")
 
 ##########################
 # Dataset and DataLoader
@@ -103,12 +120,17 @@ criterion = nn.CrossEntropyLoss()
 def compute_loss(returned_dict, targets):
     outputs = returned_dict["outputs"]
 
-    # 代码兼容 ResNet18
+    # 代码兼容 ResNet18 等常规模型
     attention_weights = returned_dict.get("attention_weights", None)
     concept_similarity = returned_dict.get("concept_similarity", None)
 
     if (attention_weights is None) and (concept_similarity is None):
-        return criterion(outputs, targets), torch.tensor(0.0), torch.tensor(0.0)
+        loss_classification = criterion(outputs, targets)
+        loss_sparsity = torch.tensor(0.0)
+        loss_diversity = torch.tensor(0.0)
+        loss = loss_classification + loss_sparsity_weight * \
+            loss_sparsity + loss_diversity_weight * loss_diversity
+        return loss, loss_classification, loss_sparsity, loss_diversity
 
     # 熵越小, 分布越不均匀
     attention_entropy = torch.mean(-torch.sum(attention_weights *
@@ -124,13 +146,14 @@ def compute_loss(returned_dict, targets):
         )
         return torch.norm(concept_similarity-ideal_similarity)
 
-    concept_regularization = concept_diversity_reg()
+    loss_classification = criterion(outputs, targets)
+    loss_sparsity = attention_entropy
+    loss_diversity = concept_diversity_reg()
 
-    # loss = criterion(outputs, targets) + attention_entropy + concept_regularization
-    # loss = criterion(outputs, targets) + concept_regularization
-    loss = criterion(outputs, targets)
+    loss = loss_classification + loss_sparsity_weight * \
+        loss_sparsity + loss_diversity_weight * loss_diversity
 
-    return loss, attention_entropy, concept_regularization
+    return loss, loss_classification, loss_sparsity, loss_diversity
 
 
 optimizer = optim.Adam(model.parameters(), lr=learning_rate)
@@ -169,7 +192,7 @@ def run_epoch(desc, model, dataloader, train=False):
             # forward pass
             if train:
                 returned_dict = model(data)
-                loss, loss_entropy, loss_reg = compute_loss(
+                loss, loss_classification, loss_sparsity, loss_diversity = compute_loss(
                     returned_dict, targets
                 )
 
@@ -180,7 +203,7 @@ def run_epoch(desc, model, dataloader, train=False):
             else:
                 with torch.no_grad():
                     returned_dict = model(data)
-                    loss, loss_entropy, loss_reg = compute_loss(
+                    loss, loss_classification, loss_sparsity, loss_diversity = compute_loss(
                         returned_dict, targets
                     )
 
@@ -190,17 +213,20 @@ def run_epoch(desc, model, dataloader, train=False):
                                     1) == targets).sum() / targets.size(0)
             metric_dict["loss"] = (metric_dict["loss"] *
                                    step + loss.item()) / (step + 1)
-            metric_dict["loss_entropy"] = (metric_dict["loss_entropy"] *
-                                           step + loss_entropy.item()) / (step + 1)
-            metric_dict["loss_reg"] = (metric_dict["loss_reg"] *
-                                       step + loss_reg.item()) / (step + 1)
+            metric_dict["loss_classification"] = (metric_dict["loss_classification"] *
+                                                  step + loss_classification.item()) / (step + 1)
+            metric_dict["loss_sparsity"] = (metric_dict["loss_sparsity"] *
+                                            step + loss_sparsity.item()) / (step + 1)
+            metric_dict["loss_diversity"] = (metric_dict["loss_diversity"] *
+                                             step + loss_diversity.item()) / (step + 1)
             metric_dict["acc"] = (metric_dict["acc"] *
                                   step + acc.item()) / (step + 1)
             pbar.set_postfix(
                 **{
                     "loss": metric_dict["loss"],
-                    "loss_entropy": metric_dict["loss_entropy"],
-                    "loss_reg": metric_dict["loss_reg"],
+                    "loss_cls": metric_dict["loss_classification"],
+                    "loss_sps": metric_dict["loss_sparsity"],
+                    "loss_dvs": metric_dict["loss_diversity"],
                     "acc": metric_dict["acc"]
                 }
             )
@@ -220,14 +246,26 @@ for epoch in range(n_epoch):
     eval_dict = run_epoch(desc, model, eval_loader, train=False)
 
     # model checkpoint
-    model_name = "epoch_%d_%.4f_%.4f_%.4f_%.4f.pt" % (
-        epoch + 1,
-        train_dict["loss"],
-        train_dict["acc"],
-        eval_dict["loss"],
-        eval_dict["acc"]
-    )
-    save(model, os.path.join(checkpoint_dir, model_name))
+    model_name_elements = [
+        "epoch",
+        f"{epoch + 1}",
+        f"{train_dict['loss']:.4f}",
+        f"{train_dict['acc']:.4f}",
+        f"{eval_dict['loss']:.4f}",
+        f"{eval_dict['acc']:.4f}"
+    ]
+    model_name = "_".join(model_name_elements) + ".pt"
 
+    if epoch % save_interval == 0:
+        save(model, os.path.join(checkpoint_dir, model_name))
+
+    early_stop_counter = 3
     if eval_dict["acc"] > 0.95:
+        early_stop_counter -= 1
+
+    if early_stop_counter == 0:
+        print("Early stopped.")
         break
+
+save(model, os.path.join(checkpoint_dir, model_name))
+print("END.")

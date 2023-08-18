@@ -35,7 +35,7 @@ parser.add_argument("--batch_size", default=256, type=int)
 
 parser.add_argument("--save_interval", default=1, type=int)
 
-parser.add_argument("--descriptiopn", default=None)
+parser.add_argument("--task_description", default=None)
 
 args = parser.parse_args()
 
@@ -67,7 +67,8 @@ if not os.path.exists(checkpoint_dir):
     os.makedirs(checkpoint_dir)
 
 # Confirm basic settings
-print("\n"+"#"*60)
+print("\n"+"#"*100)
+print(f"# {args.task_description}")
 print(f"# Use data_folder: {use_data_folder}, {num_classes} classes in total.")
 print(f"# Use model: {use_model}, includes {num_concepts} concepts.")
 print(f"# Weight for concept  sparsity loss is {loss_sparsity_weight:.4f}.")
@@ -75,14 +76,14 @@ print(f"# Weight for concept diversity loss is {loss_diversity_weight:.4f}.")
 print(f"# Train up to {n_epoch} epochs, with barch_size={batch_size}.")
 print(f"# Save model's checkpoint for every {save_interval} epochs,")
 print(f"# checkpoints locate in {checkpoint_dir}.")
-print("#"*60)
+print("#"*100)
 
 # 使用相同一个tiny数据集训练并验证
 train_data = use_data_folder_info["train_folder_path"]
 print(f"# Train on data from {train_data}.")
 eval_data = use_data_folder_info["val_folder_path"]
 print(f"# Evaluate on data from {eval_data}.")
-print("#"*60+"\n")
+print("#"*100+"\n")
 
 ##########################
 # Dataset and DataLoader
@@ -172,8 +173,9 @@ def run_epoch(desc, model, dataloader, train=False):
 
     metric_dict = {
         "loss": 0.0,
-        "loss_entropy": 0.0,
-        "loss_reg": 0.0,
+        "loss_classification": 0.0,
+        "loss_sparsity": 0.0,
+        "loss_diversity": 0.0,
         "acc": 0.0
     }
 

@@ -11,7 +11,7 @@ seed_task_elements = {
     "num_concepts": 50,
     "loss_sparsity_weight": 0,
     "loss_diversity_weight": 1,
-    "num_epochs": 3,
+    "num_epochs": 1000,
     "batch_size": 250,
     "save_interval": 10
 }

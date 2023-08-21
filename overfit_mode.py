@@ -110,10 +110,10 @@ eval_dataset = ImageFolder(root=eval_data, transform=transform)
 
 # Create DataLoader instances
 train_loader = DataLoader(
-    train_dataset, batch_size=batch_size, shuffle=True, num_workers=4
+    train_dataset, batch_size=batch_size, shuffle=True, num_workers=8
 )
 eval_loader = DataLoader(
-    eval_dataset, batch_size=batch_size, shuffle=False, num_workers=4
+    eval_dataset, batch_size=batch_size, shuffle=False, num_workers=8
 )
 
 ##########################

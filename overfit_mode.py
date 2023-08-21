@@ -3,6 +3,7 @@ import json
 import time
 import argparse
 from tqdm import tqdm
+from pprint import pprint
 
 import numpy as np  # 在 import torch 前
 import torch
@@ -318,6 +319,8 @@ log_elements = {
     "best_checkpoint_path": best_checkpoint_path,
     "detailed_log_path": args.detailed_log_path
 }
+
+pprint(log_elements)
 
 with open(args.summary_log_path, "a") as f:
     f.write(json.dumps(log_elements))

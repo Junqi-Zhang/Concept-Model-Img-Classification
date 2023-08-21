@@ -102,8 +102,16 @@ def execute_command(command, output_file):
             stderr=subprocess.STDOUT,
             universal_newlines=True
         )
-        output, _ = process.communicate()
-        f.write(output)
+
+        # 实时输出stdout和stderr到文件
+        for line in process.stdout:
+            f.write(line)
+
+        # 等待子进程结束并获取返回码
+        return_code = process.wait()
+        if return_code != 0:
+            print(f"Command '{command}' Failed! Return Code: {return_code}\n")
+
         f.write("\n")
 
 

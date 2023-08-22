@@ -26,7 +26,7 @@ def generate_tasks(seed_task_elements):
     #     new_task_element["loss_sparsity_weight"] = loss_sparsity_weight
     #     tasks.append(new_task_element)
 
-    for loss_diversity_weight in np.around(np.arange(1.0, -0.1, -0.1), 1):
+    for loss_diversity_weight in np.around(np.arange(0.8, -0.1, -0.1), 1):
         new_task_element = seed_task_elements.copy()
         new_task_element["loss_diversity_weight"] = loss_diversity_weight
         tasks.append(new_task_element)

@@ -5,16 +5,16 @@ import numpy as np
 
 
 seed_task_elements = {
-    "mode": "overfit",
-    "data_folder": "Sampled_ImageNet_Val",
-    "model": "BasicQuantResNet18",
+    "mode": "standard",
+    "data_folder": "Sampled_ImageNet",
+    "model": "ResNet18",
     "num_concepts": 50,
     "loss_sparsity_weight": 0,
     "loss_diversity_weight": 1,
-    "supplementary_description": "Try loss_diversity_weight",
+    "supplementary_description": "Try Resnet18 in standard mode",
     "num_epochs": 1000,
     "batch_size": 125,
-    "save_interval": 20
+    "save_interval": 1
 }
 
 
@@ -26,10 +26,12 @@ def generate_tasks(seed_task_elements):
     #     new_task_element["loss_sparsity_weight"] = loss_sparsity_weight
     #     tasks.append(new_task_element)
 
-    for loss_diversity_weight in np.around(np.arange(0.8, -0.1, -0.1), 1):
-        new_task_element = seed_task_elements.copy()
-        new_task_element["loss_diversity_weight"] = loss_diversity_weight
-        tasks.append(new_task_element)
+    # for loss_diversity_weight in np.around(np.arange(0.8, -0.1, -0.1), 1):
+    #     new_task_element = seed_task_elements.copy()
+    #     new_task_element["loss_diversity_weight"] = loss_diversity_weight
+    #     tasks.append(new_task_element)
+
+    tasks.append(seed_task_elements)
 
     return tasks
 

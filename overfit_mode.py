@@ -250,6 +250,9 @@ early_stop_counter = 3
 best_val_acc = 0
 best_epoch = 0
 best_checkpoint_path = ""
+last_val_acc = 0
+last_epoch = 0
+last_checkpoint_path = ""
 
 for epoch in range(n_epoch):
     # train one epoch
@@ -257,7 +260,7 @@ for epoch in range(n_epoch):
     train_dict = run_epoch(desc, model, train_loader, train=True)
 
     # validation
-    desc = "      Validataion"
+    desc = f"Evaluate epoch {epoch + 1}/{n_epoch}"
     eval_dict = run_epoch(desc, model, eval_loader, train=False)
 
     # model checkpoint
@@ -274,19 +277,30 @@ for epoch in range(n_epoch):
     if eval_dict['acc'] > best_val_acc:
         best_val_acc = eval_dict['acc']
         best_epoch = epoch + 1
-        best_checkpoint_path = os.path.join(checkpoint_dir, model_name)
+        if best_checkpoint_path != "":
+            os.remove(best_checkpoint_path)
+        best_checkpoint_path = os.path.join(
+            checkpoint_dir, "best_" + model_name
+        )
+        save(model, best_checkpoint_path)
+
+    last_val_acc = eval_dict['acc']
+    last_epoch = epoch + 1
+    last_checkpoint_path = os.path.join(checkpoint_dir, model_name)
 
     if epoch % save_interval == 0:
-        save(model, os.path.join(checkpoint_dir, model_name))
+        save(model, last_checkpoint_path)
 
     if eval_dict["acc"] > 0.95:
         early_stop_counter -= 1
+        print(f"early_stop_counter: {early_stop_counter}\n")
 
     if early_stop_counter == 0:
         early_stopped = True
         break
 
-save(model, os.path.join(checkpoint_dir, model_name))
+if not os.path.exists(last_checkpoint_path):
+    save(model, last_checkpoint_path)
 
 if early_stopped:
     print("Early stopped.")
@@ -296,9 +310,6 @@ else:
 #####################################
 # Save summary and detailed logs
 #####################################
-
-print(f"Summary log to be saved in {args.summary_log_path}")
-print(f"Detailed log to be saved in {args.detailed_log_path}")
 
 log_elements = {
     "date": time.strftime("%Y%m%d", time.localtime(time.time())),
@@ -314,13 +325,20 @@ log_elements = {
     "learning_rate": learning_rate,
     "save_interval": save_interval,
     "checkpoint_dir": checkpoint_dir,
+    "early_stopped": early_stopped,
     "best_val_acc": best_val_acc,
     "best_epoch": best_epoch,
     "best_checkpoint_path": best_checkpoint_path,
+    "last_val_acc": last_val_acc,
+    "last_epoch": last_epoch,
+    "last_checkpoint_path": last_checkpoint_path,
     "detailed_log_path": args.detailed_log_path
 }
 
 pprint(log_elements)
+
+print(f"Summary log to be saved in {args.summary_log_path}")
+print(f"Detailed log to be saved in {args.detailed_log_path}")
 
 with open(args.summary_log_path, "a") as f:
     f.write(json.dumps(log_elements))

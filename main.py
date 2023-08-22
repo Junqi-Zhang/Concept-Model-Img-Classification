@@ -2,7 +2,6 @@ import os
 import time
 import subprocess
 import numpy as np
-from threading import Thread
 
 
 seed_task_elements = {
@@ -12,19 +11,26 @@ seed_task_elements = {
     "num_concepts": 50,
     "loss_sparsity_weight": 0,
     "loss_diversity_weight": 1,
-    "supplementary_description": "Try small loss_sparsity_weight",
-    "num_epochs": 100,
+    "supplementary_description": "Try loss_diversity_weight",
+    "num_epochs": 1000,
     "batch_size": 125,
-    "save_interval": 10
+    "save_interval": 20
 }
 
 
 def generate_tasks(seed_task_elements):
     tasks = []
-    for loss_sparsity_weight in np.around(np.arange(0.01, 0.1, 0.01), 2):
+
+    # for loss_sparsity_weight in np.around(np.arange(0.01, 0.06, 0.01), 2):
+    #     new_task_element = seed_task_elements.copy()
+    #     new_task_element["loss_sparsity_weight"] = loss_sparsity_weight
+    #     tasks.append(new_task_element)
+
+    for loss_diversity_weight in np.around(np.arange(1.0, -0.1, -0.1), 1):
         new_task_element = seed_task_elements.copy()
-        new_task_element["loss_sparsity_weight"] = loss_sparsity_weight
+        new_task_element["loss_diversity_weight"] = loss_diversity_weight
         tasks.append(new_task_element)
+
     return tasks
 
 
@@ -94,12 +100,6 @@ def generate_command(task_elements, excute=False):
         return command, detailed_log_path
 
 
-def read_pipe(pipe, output_file):
-    with open(output_file, "a") as f:
-        for line in iter(pipe.readline, ""):
-            f.write(line)
-
-
 def execute_command(command, output_file):
     with open(output_file, "w") as f:
         f.write(" ".join(command))
@@ -111,24 +111,14 @@ def execute_command(command, output_file):
             universal_newlines=True
         )
 
-        # 为stdout和stderr分别创建线程进行输出
-        stdout_thread = Thread(
-            target=read_pipe, args=(process.stdout, output_file))
-        stderr_thread = Thread(
-            target=read_pipe, args=(process.stderr, output_file))
-
-        # 启动线程开始输出
-        stdout_thread.start()
-        stderr_thread.start()
+        # 实时输出stdout和stderr到文件
+        for line in process.stdout:
+            f.write(line)
 
         # 等待子进程结束并获取返回码
         return_code = process.wait()
         if return_code != 0:
             print(f"Command '{command}' Failed! Return Code: {return_code}\n")
-
-        # 等待线程结束
-        stdout_thread.join()
-        stderr_thread.join()
 
         f.write("\n")
 
@@ -148,7 +138,7 @@ def main():
         command, output_file = generate_command(task_elements, excute=True)
         execute_command(command, output_file)
 
-    print("END.")
+    print("\nEND.")
 
 
 if __name__ == "__main__":

@@ -7,31 +7,38 @@ import numpy as np
 seed_task_elements = {
     "mode": "standard",
     "data_folder": "Sampled_ImageNet",
-    "model": "ResNet18",
+    "model": "BasicQuantResNet18",
     "num_concepts": 50,
     "loss_sparsity_weight": 0,
     "loss_diversity_weight": 1,
-    "supplementary_description": "Try Resnet18 in standard mode",
-    "num_epochs": 1000,
+    "supplementary_description": "Try BasicQuantResNet18 in standard mode",
+    "num_epochs": 500,
     "batch_size": 125,
-    "save_interval": 1
+    "save_interval": 50
 }
 
 
 def generate_tasks(seed_task_elements):
     tasks = []
 
+    # tasks.append(seed_task_elements)
+    
     # for loss_sparsity_weight in np.around(np.arange(0.01, 0.06, 0.01), 2):
     #     new_task_element = seed_task_elements.copy()
     #     new_task_element["loss_sparsity_weight"] = loss_sparsity_weight
     #     tasks.append(new_task_element)
 
-    # for loss_diversity_weight in np.around(np.arange(0.8, -0.1, -0.1), 1):
+    # for loss_diversity_weight in np.around(np.arange(1.0, -0.2, -0.2), 1):
     #     new_task_element = seed_task_elements.copy()
     #     new_task_element["loss_diversity_weight"] = loss_diversity_weight
     #     tasks.append(new_task_element)
-
-    tasks.append(seed_task_elements)
+    
+    for num_concepts in [50, 100]:    
+        for loss_diversity_weight in [1.0, 0.0]:
+            new_task_element = seed_task_elements.copy()
+            new_task_element["num_concepts"] = num_concepts
+            new_task_element["loss_diversity_weight"] = loss_diversity_weight
+            tasks.append(new_task_element)
 
     return tasks
 

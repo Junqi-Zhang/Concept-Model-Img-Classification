@@ -150,18 +150,25 @@ eval_minor_dataset = ImageFolder(
 
 
 # Create DataLoader instances
+
 num_workers = 8
+pin_memory = True
+
 train_loader = DataLoader(
-    train_dataset, batch_size=batch_size, shuffle=True, num_workers=num_workers
+    train_dataset, shuffle=True,
+    batch_size=batch_size, num_workers=num_workers, pin_memory=pin_memory
 )
 eval_loader = DataLoader(
-    eval_dataset, batch_size=batch_size, shuffle=False, num_workers=num_workers
+    eval_dataset, shuffle=False,
+    batch_size=batch_size, num_workers=num_workers, pin_memory=pin_memory
 )
 eval_major_loader = DataLoader(
-    eval_major_dataset, batch_size=batch_size, shuffle=False, num_workers=num_workers
+    eval_major_dataset, shuffle=False,
+    batch_size=batch_size, num_workers=num_workers, pin_memory=pin_memory
 )
 eval_minor_loader = DataLoader(
-    eval_minor_dataset, batch_size=batch_size, shuffle=False, num_workers=num_workers
+    eval_minor_dataset, shuffle=False,
+    batch_size=batch_size, num_workers=num_workers, pin_memory=pin_memory
 )
 
 ##########################

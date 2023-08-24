@@ -15,16 +15,18 @@ parser.add_argument("--gpus", default=[0], type=int, nargs="*")
 
 
 seed_task_elements = {
-    "mode": "standard",
-    "data_folder": "Sampled_ImageNet",
+    # "mode": "standard",
+    "mode": "overfit",
+    "data_folder": "Sampled_ImageNet_Val",
     "model": "BasicQuantResNet18",
     "num_concepts": 50,
+    "norm_summary": False,
     "loss_sparsity_weight": 0,
     "loss_diversity_weight": 1,
-    "supplementary_description": "Try BasicQuantResNet18 in standard mode",
+    "supplementary_description": "Test BasicQuantResNet18V1&V2 and norm_summary",
     "num_epochs": 500,
     "batch_size": 125,
-    "save_interval": 50
+    "save_interval": 10
 }
 
 
@@ -46,16 +48,16 @@ def generate_tasks(seed_task_elements, parallel, gpus):
     #     tasks.append(new_task_element)
 
     gpu_idx = 0
-    for num_concepts in [100]:
-        for loss_diversity_weight in [0.0]:
+    for model in ["BasicQuantResNet18V1", "BasicQuantResNet18V2"]:
+        for norm_summary in [False, True]:
 
             if gpu_idx >= num_gpus:
                 print(f"Only {num_gpus} gpus are available !!!")
                 return tasks
 
             new_task_element = seed_task_elements.copy()
-            new_task_element["num_concepts"] = num_concepts
-            new_task_element["loss_diversity_weight"] = loss_diversity_weight
+            new_task_element["model"] = model
+            new_task_element["norm_summary"] = norm_summary
 
             if parallel:
                 new_task_element["gpu"] = gpus[gpu_idx]

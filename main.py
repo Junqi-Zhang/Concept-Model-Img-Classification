@@ -2,7 +2,7 @@ import os
 import time
 import argparse
 import subprocess
-import threading
+from multiprocessing import Process
 import numpy as np
 
 
@@ -163,19 +163,19 @@ def execute_command(command, output_file):
 
 
 def execute_commands(commands, output_files):
-    threads = []
+    processes = []
 
     # 同时执行命令并将输出实时写入到文件
     for command, output_file in zip(commands, output_files):
-        thread = threading.Thread(
+        process = Process(
             target=execute_command, args=(command, output_file)
         )
-        thread.start()
-        threads.append(thread)
+        process.start()
+        processes.append(process)
 
-    # 等待所有线程执行完毕
-    for thread in threads:
-        thread.join()
+    # 等待所有进程执行完毕
+    for process in processes:
+        process.join()
 
 
 def main():

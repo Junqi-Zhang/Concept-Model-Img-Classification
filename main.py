@@ -191,7 +191,7 @@ def main():
 
     time.sleep(10)
     print("\n")
-    if arg.parallel:
+    if args.parallel:
         print("Starting to excute commands in parallel !!!")
         commands = []
         output_files = []

@@ -310,7 +310,8 @@ def run_epoch(desc, model, dataloader, train=False):
 
 
 early_stopped = False
-early_stop_counter = 3
+early_stop_counter = 0
+patience = 10
 
 best_val_acc = 0
 best_val_acc_major = 0
@@ -354,6 +355,7 @@ for epoch in range(n_epoch):
     model_name = "_".join(model_name_elements) + ".pt"
 
     if eval_dict['acc'] > best_val_acc:
+        early_stop_counter = 0
         best_val_acc = eval_dict['acc']
         best_val_acc_major = eval_major_dict['acc']
         best_val_acc_minor = eval_minor_dict['acc']
@@ -364,6 +366,9 @@ for epoch in range(n_epoch):
             checkpoint_dir, "best_" + model_name
         )
         save(model, best_checkpoint_path)
+    else:
+        early_stop_counter += 1
+        print(f"early_stop_counter: {early_stop_counter}\n")
 
     last_val_acc = eval_dict['acc']
     last_val_acc_major = eval_major_dict['acc']
@@ -374,11 +379,7 @@ for epoch in range(n_epoch):
     if epoch % save_interval == 0:
         save(model, last_checkpoint_path)
 
-    if eval_dict["acc"] > 0.95:
-        early_stop_counter -= 1
-        print(f"early_stop_counter: {early_stop_counter}\n")
-
-    if early_stop_counter == 0:
+    if early_stop_counter >= patience:
         early_stopped = True
         break
 
@@ -396,7 +397,7 @@ else:
 
 log_elements = {
     "date": time.strftime("%Y%m%d", time.localtime(time.time())),
-    "mode": "overfit",
+    "mode": "standard",
     "data_folder": use_data_folder,
     "model": use_model,
     "num_concepts": num_concepts,

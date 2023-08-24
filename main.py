@@ -45,8 +45,8 @@ def generate_tasks(seed_task_elements, parallel, gpus):
     #     tasks.append(new_task_element)
 
     gpu_idx = 0
-    for num_concepts in [50, 100]:
-        for loss_diversity_weight in [1.0, 0.0]:
+    for num_concepts in [100]:
+        for loss_diversity_weight in [0.0]:
 
             if gpu_idx >= num_gpus:
                 print(f"Only {num_gpus} gpus are available !!!")

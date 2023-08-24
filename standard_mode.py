@@ -42,7 +42,7 @@ parser.add_argument("--save_interval", default=1, type=int)
 parser.add_argument("--supplementary_description", default=None)
 parser.add_argument("--summary_log_path", required=True)
 parser.add_argument("--detailed_log_path", required=True)
-parser.add_argument("--gpu", required=True)
+parser.add_argument("--gpu", type=int, required=True)
 
 args = parser.parse_args()
 

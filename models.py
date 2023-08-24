@@ -16,10 +16,11 @@ class ResNet18(nn.Module):
 
 
 class BasicConceptQuantization(nn.Module):
-    def __init__(self, input_dim, num_classes, num_concepts):
+    def __init__(self, input_dim, num_classes, num_concepts, norm_summary):
         super(BasicConceptQuantization, self).__init__()
 
         self.input_dim = input_dim
+        self.norm_summary = norm_summary
 
         # The shape of self.concepts should be C * D,
         # where C represents the num_concepts,
@@ -92,6 +93,12 @@ class BasicConceptQuantization(nn.Module):
         )  # 暂时使用原版softmax
 
         concept_summary = torch.matmul(attention_weights, value)  # B * D
+        if self.norm_summary:
+            # 按L2范数对concept_summary进行归一化
+            concept_summary = torch.div(
+                concept_summary,
+                torch.norm(concept_summary, dim=1, p=2).view(-1, 1)
+            )
 
         # The shape of output is B * K,
         # where K represents num_classes.
@@ -112,7 +119,7 @@ class BasicConceptQuantization(nn.Module):
 
 
 class BasicQuantResNet18(nn.Module):
-    def __init__(self, num_classes, num_concepts):
+    def __init__(self, num_classes, num_concepts, norm_summary):
         super(BasicQuantResNet18, self).__init__()
 
         img_classifier = resnet18(weights=None, num_classes=num_classes)
@@ -121,7 +128,8 @@ class BasicQuantResNet18(nn.Module):
         self.cq = BasicConceptQuantization(
             input_dim=512,
             num_classes=num_classes,
-            num_concepts=num_concepts
+            num_concepts=num_concepts,
+            norm_summary=norm_summary
         )
 
     def forward(self, x):

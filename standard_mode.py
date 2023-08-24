@@ -42,6 +42,7 @@ parser.add_argument("--save_interval", default=1, type=int)
 parser.add_argument("--supplementary_description", default=None)
 parser.add_argument("--summary_log_path", required=True)
 parser.add_argument("--detailed_log_path", required=True)
+parser.add_argument("--gpu", required=True)
 
 args = parser.parse_args()
 
@@ -49,7 +50,11 @@ args = parser.parse_args()
 # Basic settings
 ##########################
 
-device = "cuda" if torch.cuda.is_available() else "cpu"
+if torch.cuda.is_available():
+    device = "cuda"
+    torch.cuda.set_device(args.gpu)
+else:
+    device = "cpu"
 
 use_data_folder = args.data_folder
 use_data_folder_info = PROVIDED_DATA_FOLDERS[use_data_folder]
@@ -68,7 +73,7 @@ save_interval = args.save_interval
 
 _time = time.strftime("%Y%m%d%H%M", time.localtime(time.time()))
 checkpoint_dir = os.path.join(
-    "./checkpoints/", use_data_folder, use_model, _time)
+    "./checkpoints/", use_data_folder, use_model, _time+f"_on_gpu_{args.gpu}")
 if not os.path.exists(checkpoint_dir):
     os.makedirs(checkpoint_dir)
 

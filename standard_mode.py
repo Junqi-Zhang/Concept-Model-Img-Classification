@@ -23,7 +23,7 @@ from utils import save, load
 ##########################
 
 parser = argparse.ArgumentParser(
-    description="Test model's ability to overfit a tiny dataset."
+    description="Test model's ability of generalization."
 )
 
 parser.add_argument("--data_folder", required=True)

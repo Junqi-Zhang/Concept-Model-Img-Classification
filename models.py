@@ -212,7 +212,7 @@ class BasicConceptQuantizationV2(nn.Module):
             torch.Tensor(num_concepts, input_dim)
         )  # C * D
 
-        # W_q 和 W_k 为可学习参数
+        # W_q 和 W_k 设置为可学习参数
         self.query_transform = nn.Parameter(
             torch.Tensor(input_dim, input_dim)
         )  # D * D

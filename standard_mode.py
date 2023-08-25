@@ -204,9 +204,11 @@ def compute_loss(returned_dict, targets):
             loss_sparsity + loss_diversity_weight * loss_diversity
         return loss, loss_classification, loss_sparsity, loss_diversity
 
-    # 熵越小, 分布越不均匀
-    attention_entropy = torch.mean(-torch.sum(attention_weights *
-                                              torch.log2(attention_weights), dim=1))
+    def concept_sparsity_reg():
+        # 熵越小, 分布越不均匀
+        # clamp attention_weights, 避免log2后出现nan
+        return torch.mean(-torch.sum(attention_weights.clamp(min=1e-9) *
+                                     torch.log2(attention_weights.clamp(min=1e-9)), dim=1))
 
     # 防止 concept 退化, concept 之间要近似正交
     def concept_diversity_reg():
@@ -219,7 +221,7 @@ def compute_loss(returned_dict, targets):
         return torch.norm(concept_similarity-ideal_similarity)
 
     loss_classification = criterion(outputs, targets)
-    loss_sparsity = attention_entropy
+    loss_sparsity = concept_sparsity_reg()
     loss_diversity = concept_diversity_reg()
 
     loss = loss_classification + loss_sparsity_weight * \

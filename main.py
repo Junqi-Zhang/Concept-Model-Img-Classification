@@ -18,7 +18,7 @@ seed_task_elements = {
     # "mode": "standard",
     "mode": "overfit",
     "data_folder": "Sampled_ImageNet_Val",
-    "model": "BasicQuantResNet18",
+    "model": "BasicQuantResNet18V2",
     "num_concepts": 50,
     "norm_summary": False,
     "loss_sparsity_weight": 0,
@@ -32,23 +32,15 @@ seed_task_elements = {
 
 def generate_tasks(seed_task_elements, parallel, gpus):
 
-    num_gpus = len(gpus)
     tasks = []
 
-    # tasks.append(seed_task_elements)
+    # new_task_element = seed_task_elements.copy()
+    # new_task_element["gpu"] = 0
+    # tasks.append(new_task_element)
 
-    # for loss_sparsity_weight in np.around(np.arange(0.01, 0.06, 0.01), 2):
-    #     new_task_element = seed_task_elements.copy()
-    #     new_task_element["loss_sparsity_weight"] = loss_sparsity_weight
-    #     tasks.append(new_task_element)
-
-    # for loss_diversity_weight in np.around(np.arange(1.0, -0.2, -0.2), 1):
-    #     new_task_element = seed_task_elements.copy()
-    #     new_task_element["loss_diversity_weight"] = loss_diversity_weight
-    #     tasks.append(new_task_element)
-
+    num_gpus = len(gpus)
     gpu_idx = 0
-    for model in ["BasicQuantResNet18V1", "BasicQuantResNet18V2"]:
+    for model in ["BasicQuantResNet18", "BasicQuantResNet18V1", "BasicQuantResNet18V2"]:
         for norm_summary in [False, True]:
 
             if gpu_idx >= num_gpus:

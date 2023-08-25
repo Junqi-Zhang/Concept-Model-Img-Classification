@@ -23,7 +23,7 @@ seed_task_elements = {
     "norm_summary": False,
     "loss_sparsity_weight": 0,
     "loss_diversity_weight": 1,
-    "supplementary_description": "Test BasicQuantResNet18V1&V2 and norm_summary",
+    "supplementary_description": "Test BasicQuantResNet18V1 and V2 with norm_summary",
     "num_epochs": 500,
     "batch_size": 125,
     "save_interval": 10
@@ -48,8 +48,8 @@ def generate_tasks(seed_task_elements, parallel, gpus):
     #     tasks.append(new_task_element)
 
     gpu_idx = 0
-    for model in ["BasicQuantResNet18V1", "BasicQuantResNet18V2"]:
-        for norm_summary in [False, True]:
+    for model in ["BasicQuantResNet18V1", "BasicQuantResNet18V1"]:
+        for norm_summary in [False, False]:
 
             if gpu_idx >= num_gpus:
                 print(f"Only {num_gpus} gpus are available !!!")
@@ -136,16 +136,20 @@ def generate_command(task_elements, excute=False):
         return command, detailed_log_path
 
 
-def execute_command(command, output_file):
+def execute_command(command, output_file, gpu):
     with open(output_file, "w") as f:
         f.write(" ".join(command))
         f.write("\n")
 
+    with open(output_file, "a") as f:
+        env = os.environ.copy()
+        env["CUDA_VISIBLE_DEVICES"] = str(gpu)
         process = subprocess.Popen(
             command,
             stdout=f,
-            stderr=f,
-            universal_newlines=True
+            stderr=subprocess.STDOUT,
+            universal_newlines=True,
+            env=env
         )
 
         # # 实时输出stdout和stderr到文件
@@ -159,16 +163,17 @@ def execute_command(command, output_file):
                 f"Command '{command}' Failed! Return Code: {return_code}\n"
             )
 
+    with open(output_file, "a") as f:
         f.write("\n")
 
 
-def execute_commands(commands, output_files):
+def execute_commands(commands, output_files, gpus):
     processes = []
 
     # 同时执行命令并将输出实时写入到文件
-    for command, output_file in zip(commands, output_files):
+    for command, output_file, gpu in zip(commands, output_files, gpus):
         process = Process(
-            target=execute_command, args=(command, output_file)
+            target=execute_command, args=(command, output_file, gpu)
         )
         process.start()
         processes.append(process)
@@ -197,18 +202,20 @@ def main():
         print("Starting to excute commands in parallel !!!")
         commands = []
         output_files = []
+        gpus = []
         for task_elements in tasks:
             command, output_file = generate_command(task_elements, excute=True)
             commands.append(command)
             output_files.append(output_file)
-        execute_commands(commands, output_files)
+            gpus.append(task_elements["gpu"])
+        execute_commands(commands, output_files, gpus)
     else:
         print(
             f"Starting to excute commands in sequence on gpu_{args.gpus[0]} !!!"
         )
         for task_elements in tasks:
             command, output_file = generate_command(task_elements, excute=True)
-            execute_command(command, output_file)
+            execute_command(command, output_file, task_elements["gpu"])
 
     print("\nEND.")
 

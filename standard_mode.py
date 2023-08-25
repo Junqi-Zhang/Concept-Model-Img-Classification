@@ -53,7 +53,7 @@ args = parser.parse_args()
 
 if torch.cuda.is_available():
     device = "cuda"
-    torch.cuda.set_device(args.gpu)
+    # torch.cuda.set_device(args.gpu)
 else:
     device = "cpu"
 

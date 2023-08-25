@@ -30,7 +30,7 @@ parser.add_argument("--data_folder", required=True)
 
 parser.add_argument("--model", required=True)
 parser.add_argument("--num_concepts", default=64, type=int)
-parser.add_argument("--norm_summary", default=False, type=bool)
+parser.add_argument("--norm_summary", default="False")
 parser.add_argument("--loss_sparsity_weight", default=0.0, type=float)
 parser.add_argument("--loss_diversity_weight", default=0.0, type=float)
 
@@ -63,7 +63,7 @@ num_classes = use_data_folder_info["num_classes"]
 
 use_model = args.model
 num_concepts = args.num_concepts
-norm_summary = args.norm_summary
+norm_summary = eval(args.norm_summary)
 loss_sparsity_weight = args.loss_sparsity_weight
 loss_diversity_weight = args.loss_diversity_weight
 

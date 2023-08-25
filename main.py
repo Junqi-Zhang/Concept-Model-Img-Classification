@@ -48,8 +48,8 @@ def generate_tasks(seed_task_elements, parallel, gpus):
     #     tasks.append(new_task_element)
 
     gpu_idx = 0
-    for model in ["BasicQuantResNet18V1", "BasicQuantResNet18V1"]:
-        for norm_summary in [False, False]:
+    for model in ["BasicQuantResNet18V1", "BasicQuantResNet18V2"]:
+        for norm_summary in [False, True]:
 
             if gpu_idx >= num_gpus:
                 print(f"Only {num_gpus} gpus are available !!!")

@@ -16,10 +16,11 @@ class ResNet18(nn.Module):
 
 
 class BasicConceptQuantization(nn.Module):
-    def __init__(self, input_dim, num_classes, num_concepts, norm_summary):
+    def __init__(self, input_dim, num_classes, num_concepts, norm_concepts, norm_summary):
         super(BasicConceptQuantization, self).__init__()
 
         self.input_dim = input_dim
+        self.norm_concepts = norm_concepts
         self.norm_summary = norm_summary
 
         # The shape of self.concepts should be C * D,
@@ -80,10 +81,18 @@ class BasicConceptQuantization(nn.Module):
         # The shape of x should be B * D,
         # where B represents the batch_size.
 
+        if self.norm_concepts:
+            concepts = torch.div(
+                self.concepts,
+                torch.norm(self.concepts, dim=1, p=2).view(-1, 1)
+            )
+        else:
+            concepts = self.concepts
+
         # query, key, value 的线性变换
         query = torch.matmul(x, self.query_transform)  # B * D
-        key = torch.matmul(self.concepts, self.key_transform)  # C * D
-        value = torch.matmul(self.concepts, self.value_transform)  # C * D
+        key = torch.matmul(concepts, self.key_transform)  # C * D
+        value = torch.matmul(concepts, self.value_transform)  # C * D
 
         attention_weights = torch.matmul(query, key.t())  # B * C
         attention_weights = attention_weights / \
@@ -106,8 +115,8 @@ class BasicConceptQuantization(nn.Module):
 
         # 计算 concepts 的 cosine 相似度矩阵
         concept_similarity = F.cosine_similarity(
-            self.concepts.unsqueeze(1),
-            self.concepts.unsqueeze(0),
+            concepts.unsqueeze(1),
+            concepts.unsqueeze(0),
             dim=2
         )  # C * C
 
@@ -119,10 +128,11 @@ class BasicConceptQuantization(nn.Module):
 
 
 class BasicConceptQuantizationV1(nn.Module):
-    def __init__(self, input_dim, num_classes, num_concepts, norm_summary):
+    def __init__(self, input_dim, num_classes, num_concepts, norm_concepts, norm_summary):
         super(BasicConceptQuantizationV1, self).__init__()
 
         self.input_dim = input_dim
+        self.norm_concepts = norm_concepts
         self.norm_summary = norm_summary
 
         # The shape of self.concepts should be C * D,
@@ -163,7 +173,15 @@ class BasicConceptQuantizationV1(nn.Module):
         # The shape of x should be B * D,
         # where B represents the batch_size.
 
-        attention_weights = torch.matmul(x, self.concepts.t())  # B * C
+        if self.norm_concepts:
+            concepts = torch.div(
+                self.concepts,
+                torch.norm(self.concepts, dim=1, p=2).view(-1, 1)
+            )
+        else:
+            concepts = self.concepts
+
+        attention_weights = torch.matmul(x, concepts.t())  # B * C
         attention_weights = attention_weights / \
             torch.sqrt(torch.tensor(self.input_dim).float())
         attention_weights = self.modified_softmax(
@@ -171,7 +189,7 @@ class BasicConceptQuantizationV1(nn.Module):
         )  # 暂时使用原版softmax
 
         concept_summary = torch.matmul(
-            attention_weights, self.concepts
+            attention_weights, concepts
         )  # B * D
         if self.norm_summary:
             # 按L2范数对concept_summary进行归一化
@@ -186,8 +204,8 @@ class BasicConceptQuantizationV1(nn.Module):
 
         # 计算 concepts 的 cosine 相似度矩阵
         concept_similarity = F.cosine_similarity(
-            self.concepts.unsqueeze(1),
-            self.concepts.unsqueeze(0),
+            concepts.unsqueeze(1),
+            concepts.unsqueeze(0),
             dim=2
         )  # C * C
 
@@ -199,10 +217,11 @@ class BasicConceptQuantizationV1(nn.Module):
 
 
 class BasicConceptQuantizationV2(nn.Module):
-    def __init__(self, input_dim, num_classes, num_concepts, norm_summary):
+    def __init__(self, input_dim, num_classes, num_concepts, norm_concepts, norm_summary):
         super(BasicConceptQuantizationV2, self).__init__()
 
         self.input_dim = input_dim
+        self.norm_concepts = norm_concepts
         self.norm_summary = norm_summary
 
         # The shape of self.concepts should be C * D,
@@ -262,10 +281,18 @@ class BasicConceptQuantizationV2(nn.Module):
         # The shape of x should be B * D,
         # where B represents the batch_size.
 
+        if self.norm_concepts:
+            concepts = torch.div(
+                self.concepts,
+                torch.norm(self.concepts, dim=1, p=2).view(-1, 1)
+            )
+        else:
+            concepts = self.concepts
+
         # query, key, value 的线性变换
         query = torch.matmul(x, self.query_transform)  # B * D
-        key = torch.matmul(self.concepts, self.key_transform)  # C * D
-        value = torch.matmul(self.concepts, self.value_transform)  # C * D
+        key = torch.matmul(concepts, self.key_transform)  # C * D
+        value = torch.matmul(concepts, self.value_transform)  # C * D
 
         attention_weights = torch.matmul(query, key.t())  # B * C
         attention_weights = attention_weights / \
@@ -288,8 +315,8 @@ class BasicConceptQuantizationV2(nn.Module):
 
         # 计算 concepts 的 cosine 相似度矩阵
         concept_similarity = F.cosine_similarity(
-            self.concepts.unsqueeze(1),
-            self.concepts.unsqueeze(0),
+            concepts.unsqueeze(1),
+            concepts.unsqueeze(0),
             dim=2
         )  # C * C
 
@@ -301,7 +328,7 @@ class BasicConceptQuantizationV2(nn.Module):
 
 
 class BasicQuantResNet18(nn.Module):
-    def __init__(self, num_classes, num_concepts, norm_summary):
+    def __init__(self, num_classes, num_concepts, norm_concepts, norm_summary):
         super(BasicQuantResNet18, self).__init__()
 
         img_classifier = resnet18(weights=None, num_classes=num_classes)
@@ -311,6 +338,7 @@ class BasicQuantResNet18(nn.Module):
             input_dim=512,
             num_classes=num_classes,
             num_concepts=num_concepts,
+            norm_concepts=norm_concepts,
             norm_summary=norm_summary
         )
 
@@ -321,7 +349,7 @@ class BasicQuantResNet18(nn.Module):
 
 
 class BasicQuantResNet18V1(nn.Module):
-    def __init__(self, num_classes, num_concepts, norm_summary):
+    def __init__(self, num_classes, num_concepts, norm_concepts, norm_summary):
         super(BasicQuantResNet18V1, self).__init__()
 
         img_classifier = resnet18(weights=None, num_classes=num_classes)
@@ -331,6 +359,7 @@ class BasicQuantResNet18V1(nn.Module):
             input_dim=512,
             num_classes=num_classes,
             num_concepts=num_concepts,
+            norm_concepts=norm_concepts,
             norm_summary=norm_summary
         )
 
@@ -341,7 +370,7 @@ class BasicQuantResNet18V1(nn.Module):
 
 
 class BasicQuantResNet18V2(nn.Module):
-    def __init__(self, num_classes, num_concepts, norm_summary):
+    def __init__(self, num_classes, num_concepts, norm_concepts, norm_summary):
         super(BasicQuantResNet18V2, self).__init__()
 
         img_classifier = resnet18(weights=None, num_classes=num_classes)
@@ -351,6 +380,7 @@ class BasicQuantResNet18V2(nn.Module):
             input_dim=512,
             num_classes=num_classes,
             num_concepts=num_concepts,
+            norm_concepts=norm_concepts,
             norm_summary=norm_summary
         )
 

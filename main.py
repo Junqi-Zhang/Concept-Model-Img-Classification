@@ -20,6 +20,7 @@ seed_task_elements = {
     "data_folder": "Sampled_ImageNet_Val",
     "model": "BasicQuantResNet18V2",
     "num_concepts": 50,
+    "norm_concepts": True,
     "norm_summary": False,
     "loss_sparsity_weight": 0,
     "loss_diversity_weight": 1,

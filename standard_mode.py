@@ -12,7 +12,7 @@ import torch.optim as optim
 from torch.utils.data import DataLoader
 from torchvision import transforms
 from torchvision.datasets import ImageFolder
-from torch.optim.lr_scheduler import ReduceLROnPlateau
+from torch.optim.lr_scheduler import LambdaLR, CosineAnnealingLR, ReduceLROnPlateau, SequentialLR
 
 from data_folders import PROVIDED_DATA_FOLDERS
 from models import PROVIDED_MODELS
@@ -73,6 +73,7 @@ loss_diversity_weight = args.loss_diversity_weight
 n_epoch = args.num_epochs
 batch_size = args.batch_size
 learning_rate = 1e-3
+milestone_epoch = 30
 
 save_interval = args.save_interval
 
@@ -235,7 +236,30 @@ def compute_loss(returned_dict, targets):
 
 
 optimizer = optim.Adam(model.parameters(), lr=learning_rate)
-scheduler = ReduceLROnPlateau(
+
+
+# 创建 warmup 调度器
+def custom_lr_scheduler(epoch):
+    if epoch < 10:  # warmup 10 epochs
+        return 0.1 * (epoch + 1)
+    else:
+        return 1
+
+
+custom_scheduler = LambdaLR(
+    optimizer, lr_lambda=custom_lr_scheduler, verbose=True
+)
+
+cosine_scheduler = CosineAnnealingLR(
+    optimizer, T_max=20, eta_min=5e-6, verbose=True
+)
+
+sequential_scheduler = SequentialLR(
+    optimizer, schedulers=[custom_scheduler,
+                           cosine_scheduler], milestones=[milestone_epoch]
+)
+
+plateau_scheduler = ReduceLROnPlateau(
     optimizer, mode="max", factor=0.5, patience=10, verbose=True
 )
 
@@ -334,6 +358,7 @@ last_epoch = 0
 last_checkpoint_path = ""
 
 for epoch in range(n_epoch):
+
     # train one epoch
     desc = f"Training epoch {epoch + 1}/{n_epoch}"
     train_dict = run_epoch(desc, model, train_loader, train=True)
@@ -349,7 +374,8 @@ for epoch in range(n_epoch):
     eval_minor_dict = run_epoch(desc, model, eval_minor_loader, train=False)
 
     # 调整学习率
-    scheduler.step(eval_dict["acc"])
+    sequential_scheduler.step()
+    plateau_scheduler.step(eval_dict["acc"])
 
     # model checkpoint
     model_name_elements = [

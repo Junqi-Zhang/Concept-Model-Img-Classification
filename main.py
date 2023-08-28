@@ -23,11 +23,11 @@ seed_task_elements = {
     "norm_concepts": True,
     "norm_summary": False,
     "loss_sparsity_weight": 0,
-    "loss_diversity_weight": 1,
+    "loss_diversity_weight": 0,
     "supplementary_description": "Test BasicQuantResNet18V1 and V2 with norm_summary",
     "num_epochs": 500,
     "batch_size": 125,
-    "save_interval": 10
+    "save_interval": 20
 }
 
 
@@ -41,8 +41,8 @@ def generate_tasks(seed_task_elements, parallel, gpus):
 
     num_gpus = len(gpus)
     gpu_idx = 0
-    for model in ["BasicQuantResNet18", "BasicQuantResNet18V1", "BasicQuantResNet18V2"]:
-        for norm_summary in [False, True]:
+    for model in ["BasicQuantResNet18V1", "BasicQuantResNet18V2"]:
+        for norm_summary in [False]:
 
             if gpu_idx >= num_gpus:
                 print(f"Only {num_gpus} gpus are available !!!")

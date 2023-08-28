@@ -12,6 +12,7 @@ import torch.optim as optim
 from torch.utils.data import DataLoader
 from torchvision import transforms
 from torchvision.datasets import ImageFolder
+from torch.optim.lr_scheduler import ReduceLROnPlateau
 
 from data_folders import PROVIDED_DATA_FOLDERS
 from models import PROVIDED_MODELS
@@ -231,6 +232,9 @@ def compute_loss(returned_dict, targets):
 
 
 optimizer = optim.Adam(model.parameters(), lr=learning_rate)
+scheduler = ReduceLROnPlateau(
+    optimizer, mode="max", factor=0.5, patience=10, verbose=True
+)
 
 ##########################
 # Training pipeline
@@ -340,6 +344,9 @@ for epoch in range(n_epoch):
 
     desc = f"MinorVal epoch {epoch + 1}/{n_epoch}"
     eval_minor_dict = run_epoch(desc, model, eval_minor_loader, train=False)
+
+    # 调整学习率
+    scheduler.step(eval_dict["acc"])
 
     # model checkpoint
     model_name_elements = [

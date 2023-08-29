@@ -15,19 +15,19 @@ parser.add_argument("--gpus", default=[0], type=int, nargs="*")
 
 
 seed_task_elements = {
-    # "mode": "standard",
-    "mode": "overfit",
-    "data_folder": "Sampled_ImageNet_Val",
-    "model": "BasicQuantResNet18V2",
+    "mode": "standard",
+    # "mode": "overfit",
+    "data_folder": "Sampled_ImageNet",
+    "model": "BasicQuantResNet18V3",
     "num_concepts": 50,
-    "norm_concepts": True,
+    "norm_concepts": False,
     "norm_summary": False,
     "loss_sparsity_weight": 0,
     "loss_diversity_weight": 0,
-    "supplementary_description": "Test BasicQuantResNet18V1 and V2 with norm_summary",
-    "num_epochs": 500,
+    "supplementary_description": "Check Concept Sparsity",
+    "num_epochs": 1000,
     "batch_size": 125,
-    "save_interval": 20
+    "save_interval": 50
 }
 
 
@@ -35,30 +35,53 @@ def generate_tasks(seed_task_elements, parallel, gpus):
 
     tasks = []
 
-    # new_task_element = seed_task_elements.copy()
-    # new_task_element["gpu"] = 0
-    # tasks.append(new_task_element)
+    new_task_element = seed_task_elements.copy()
+    new_task_element["gpu"] = 0
+    tasks.append(new_task_element)
 
-    num_gpus = len(gpus)
-    gpu_idx = 0
-    for model in ["BasicQuantResNet18V1", "BasicQuantResNet18V2"]:
-        for norm_summary in [False]:
+    new_task_element = seed_task_elements.copy()
+    new_task_element["gpu"] = 1
+    new_task_element["loss_diversity_weight"] = 1
+    tasks.append(new_task_element)
 
-            if gpu_idx >= num_gpus:
-                print(f"Only {num_gpus} gpus are available !!!")
-                return tasks
+    new_task_element = seed_task_elements.copy()
+    new_task_element["gpu"] = 2
+    new_task_element["norm_summary"] = True
+    tasks.append(new_task_element)
 
-            new_task_element = seed_task_elements.copy()
-            new_task_element["model"] = model
-            new_task_element["norm_summary"] = norm_summary
+    new_task_element = seed_task_elements.copy()
+    new_task_element["gpu"] = 3
+    new_task_element["loss_diversity_weight"] = 1
+    new_task_element["norm_summary"] = True
+    tasks.append(new_task_element)
 
-            if parallel:
-                new_task_element["gpu"] = gpus[gpu_idx]
-                gpu_idx += 1
-            else:
-                new_task_element["gpu"] = gpus[gpu_idx]
+    new_task_element = seed_task_elements.copy()
+    new_task_element["gpu"] = 4
+    new_task_element["model"] = "BasicQuantResNet18V2"
+    new_task_element["loss_diversity_weight"] = 1
+    new_task_element["norm_summary"] = True
+    tasks.append(new_task_element)
 
-            tasks.append(new_task_element)
+    # num_gpus = len(gpus)
+    # gpu_idx = 0
+    # for model in ["BasicQuantResNet18V1", "BasicQuantResNet18V2"]:
+    #     for norm_concepts in [False, True]:
+
+    #         if gpu_idx >= num_gpus:
+    #             print(f"Only {num_gpus} gpus are available !!!")
+    #             return tasks
+
+    #         new_task_element = seed_task_elements.copy()
+    #         new_task_element["model"] = model
+    #         new_task_element["norm_concepts"] = norm_concepts
+
+    #         if parallel:
+    #             new_task_element["gpu"] = gpus[gpu_idx]
+    #             gpu_idx += 1
+    #         else:
+    #             new_task_element["gpu"] = gpus[gpu_idx]
+
+    #         tasks.append(new_task_element)
 
     return tasks
 

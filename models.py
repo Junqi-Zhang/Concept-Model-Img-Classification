@@ -222,6 +222,7 @@ class BasicConceptQuantizationV2(nn.Module):
         super(BasicConceptQuantizationV2, self).__init__()
 
         self.input_dim = input_dim
+        self.num_concepts = num_concepts
         self.norm_concepts = norm_concepts
         self.norm_summary = norm_summary
 
@@ -302,7 +303,9 @@ class BasicConceptQuantizationV2(nn.Module):
             attention_weights, dim=1, modified=False
         )  # 暂时使用原版softmax
 
-        concept_summary = torch.matmul(attention_weights, value)  # B * D
+        concept_summary = torch.matmul(
+            attention_weights * self.num_concepts, value
+        )  # B * D
         if self.norm_summary:
             # 按L2范数对concept_summary进行归一化
             concept_summary = torch.div(
@@ -333,6 +336,7 @@ class BasicConceptQuantizationV3(nn.Module):
         super(BasicConceptQuantizationV3, self).__init__()
 
         self.input_dim = input_dim
+        self.num_concepts = num_concepts
         self.norm_concepts = norm_concepts
         self.norm_summary = norm_summary
 
@@ -398,7 +402,9 @@ class BasicConceptQuantizationV3(nn.Module):
             torch.sqrt(torch.tensor(self.input_dim).float())
         attention_weights = self.sparsemax(attention_weights)  # 尝试sparsemax
 
-        concept_summary = torch.matmul(attention_weights, value)  # B * D
+        concept_summary = torch.matmul(
+            attention_weights * self.num_concepts, value
+        )  # B * D
         if self.norm_summary:
             # 按L2范数对concept_summary进行归一化
             concept_summary = torch.div(

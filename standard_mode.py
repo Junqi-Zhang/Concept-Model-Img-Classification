@@ -274,6 +274,8 @@ def run_epoch(desc, model, dataloader, train=False):
         "acc": 0.0
     }
 
+    attention = []
+
     step = 0
     with tqdm(
         total=len(dataloader),
@@ -303,6 +305,10 @@ def run_epoch(desc, model, dataloader, train=False):
                     loss, loss_classification, loss_sparsity, loss_diversity = compute_loss(
                         returned_dict, targets
                     )
+            if returned_dict.get("attention_weights", None) is not None:
+                attention.append(
+                    returned_dict["attention_weights"].detach().cpu().numpy()
+                )
 
             # display the metrics
             with torch.no_grad():
@@ -330,7 +336,21 @@ def run_epoch(desc, model, dataloader, train=False):
             pbar.update(1)
 
             step += 1
+
+    if len(attention) > 0:
+        analyze_sparsity(attention)
     return metric_dict
+
+
+def analyze_sparsity(attn):
+    baseline = np.mean(attn)
+    percentile_25 = np.percentile(attn, 25) / baseline
+    percentile_50 = np.percentile(attn, 50) / baseline
+    percentile_75 = np.percentile(attn, 75) / baseline
+    percentile_90 = np.percentile(attn, 90) / baseline
+    percentile_99 = np.percentile(attn, 99) / baseline
+    print('25: %.5f, 50: %.5f, 75: %.5f, 90: %.5f, 99: %.5f' % (
+        percentile_25, percentile_50, percentile_75, percentile_90, percentile_99))
 
 
 early_stopped = False
@@ -365,7 +385,8 @@ for epoch in range(n_epoch):
     eval_minor_dict = run_epoch(desc, model, eval_minor_loader, train=False)
 
     # 调整学习率
-    warmup_scheduler.step()
+    if epoch < warmup_epochs:
+        warmup_scheduler.step()
     plateau_scheduler.step(eval_dict["acc"])
 
     # model checkpoint

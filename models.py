@@ -218,11 +218,11 @@ class BasicConceptQuantizationV1(nn.Module):
 
 
 class BasicConceptQuantizationV2(nn.Module):
-    def __init__(self, input_dim, num_classes, num_concepts, norm_concepts, norm_summary):
+    def __init__(self, input_dim, num_classes, num_concepts, norm_concepts, norm_summary, grad_factor):
         super(BasicConceptQuantizationV2, self).__init__()
 
         self.input_dim = input_dim
-        self.num_concepts = num_concepts
+        self.grad_factor = grad_factor
         self.norm_concepts = norm_concepts
         self.norm_summary = norm_summary
 
@@ -304,7 +304,7 @@ class BasicConceptQuantizationV2(nn.Module):
         )  # 暂时使用原版softmax
 
         concept_summary = torch.matmul(
-            attention_weights * self.num_concepts, value
+            attention_weights * self.grad_factor, value
         )  # B * D
         if self.norm_summary:
             # 按L2范数对concept_summary进行归一化
@@ -332,11 +332,11 @@ class BasicConceptQuantizationV2(nn.Module):
 
 
 class BasicConceptQuantizationV3(nn.Module):
-    def __init__(self, input_dim, num_classes, num_concepts, norm_concepts, norm_summary):
+    def __init__(self, input_dim, num_classes, num_concepts, norm_concepts, norm_summary, grad_factor):
         super(BasicConceptQuantizationV3, self).__init__()
 
         self.input_dim = input_dim
-        self.num_concepts = num_concepts
+        self.grad_factor = grad_factor
         self.norm_concepts = norm_concepts
         self.norm_summary = norm_summary
 
@@ -403,7 +403,7 @@ class BasicConceptQuantizationV3(nn.Module):
         attention_weights = self.sparsemax(attention_weights)  # 尝试sparsemax
 
         concept_summary = torch.matmul(
-            attention_weights * self.num_concepts, value
+            attention_weights * self.grad_factor, value
         )  # B * D
         if self.norm_summary:
             # 按L2范数对concept_summary进行归一化
@@ -431,7 +431,7 @@ class BasicConceptQuantizationV3(nn.Module):
 
 
 class BasicQuantResNet18(nn.Module):
-    def __init__(self, num_classes, num_concepts, norm_concepts, norm_summary):
+    def __init__(self, num_classes, num_concepts, norm_concepts, norm_summary, *args, **kwargs):
         super(BasicQuantResNet18, self).__init__()
 
         img_classifier = resnet18(weights=None, num_classes=num_classes)
@@ -452,7 +452,7 @@ class BasicQuantResNet18(nn.Module):
 
 
 class BasicQuantResNet18V1(nn.Module):
-    def __init__(self, num_classes, num_concepts, norm_concepts, norm_summary):
+    def __init__(self, num_classes, num_concepts, norm_concepts, norm_summary, *args, **kwargs):
         super(BasicQuantResNet18V1, self).__init__()
 
         img_classifier = resnet18(weights=None, num_classes=num_classes)
@@ -473,7 +473,7 @@ class BasicQuantResNet18V1(nn.Module):
 
 
 class BasicQuantResNet18V2(nn.Module):
-    def __init__(self, num_classes, num_concepts, norm_concepts, norm_summary):
+    def __init__(self, num_classes, num_concepts, norm_concepts, norm_summary, grad_factor, *args, **kwargs):
         super(BasicQuantResNet18V2, self).__init__()
 
         img_classifier = resnet18(weights=None, num_classes=num_classes)
@@ -484,7 +484,8 @@ class BasicQuantResNet18V2(nn.Module):
             num_classes=num_classes,
             num_concepts=num_concepts,
             norm_concepts=norm_concepts,
-            norm_summary=norm_summary
+            norm_summary=norm_summary,
+            grad_factor=grad_factor
         )
 
     def forward(self, x):
@@ -494,7 +495,7 @@ class BasicQuantResNet18V2(nn.Module):
 
 
 class BasicQuantResNet18V3(nn.Module):
-    def __init__(self, num_classes, num_concepts, norm_concepts, norm_summary):
+    def __init__(self, num_classes, num_concepts, norm_concepts, norm_summary, grad_factor, *args, **kwargs):
         super(BasicQuantResNet18V3, self).__init__()
 
         img_classifier = resnet18(weights=None, num_classes=num_classes)
@@ -505,7 +506,8 @@ class BasicQuantResNet18V3(nn.Module):
             num_classes=num_classes,
             num_concepts=num_concepts,
             norm_concepts=norm_concepts,
-            norm_summary=norm_summary
+            norm_summary=norm_summary,
+            grad_factor=grad_factor
         )
 
     def forward(self, x):

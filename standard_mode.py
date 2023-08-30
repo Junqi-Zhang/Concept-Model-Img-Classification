@@ -33,6 +33,7 @@ parser.add_argument("--model", required=True)
 parser.add_argument("--num_concepts", default=64, type=int)
 parser.add_argument("--norm_concepts", default="False")
 parser.add_argument("--norm_summary", default="False")
+parser.add_argument("--grad_factor", default=1, type=int)
 parser.add_argument("--loss_sparsity_weight", default=0.0, type=float)
 parser.add_argument("--loss_diversity_weight", default=0.0, type=float)
 
@@ -67,6 +68,7 @@ use_model = args.model
 num_concepts = args.num_concepts
 norm_concepts = eval(args.norm_concepts)
 norm_summary = eval(args.norm_summary)
+grad_factor = args.grad_factor
 loss_sparsity_weight = args.loss_sparsity_weight
 loss_diversity_weight = args.loss_diversity_weight
 
@@ -89,6 +91,7 @@ print(f"# Desc: {args.supplementary_description}")
 print(f"# Use data_folder: {use_data_folder}, {num_classes} classes in total.")
 print(f"# Use model: {use_model}, includes {num_concepts} concepts.")
 print(f"# Norm Concepts: {norm_concepts}, Norm Summary: {norm_summary}.")
+print(f"# Gradient Factor on Softmax: {grad_factor}.")
 print(f"# Weight for concept  sparsity loss is {loss_sparsity_weight:.4f}.")
 print(f"# Weight for concept diversity loss is {loss_diversity_weight:.4f}.")
 print(f"# Train up to {n_epoch} epochs, with barch_size={batch_size}.")
@@ -190,7 +193,8 @@ eval_minor_loader = DataLoader(
 model = PROVIDED_MODELS[use_model](num_classes,
                                    num_concepts,
                                    norm_concepts,
-                                   norm_summary).to(device)
+                                   norm_summary,
+                                   grad_factor).to(device)
 criterion = nn.CrossEntropyLoss()
 
 
@@ -453,6 +457,7 @@ log_elements = {
     "num_concepts": num_concepts,
     "norm_concepts": norm_concepts,
     "norm_summary": norm_summary,
+    "grad_factor": grad_factor,
     "loss_sparsity_weight": loss_sparsity_weight,
     "loss_diversity_weight": loss_diversity_weight,
     "supplementary_description": args.supplementary_description,

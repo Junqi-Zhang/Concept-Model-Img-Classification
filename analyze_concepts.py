@@ -19,7 +19,7 @@ from utils import load
 # Basic settings
 ##########################
 
-os.environ["CUDA_VISIBLE_DEVICES"] = "2"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
 if torch.cuda.is_available():
     device = "cuda"
@@ -40,7 +40,8 @@ loss_diversity_weight = 1.0
 
 batch_size = 125
 
-load_checkpoint_path = "./checkpoints/Sampled_ImageNet/BasicQuantResNet18V3/202308291624_on_gpu_8/best_epoch_154_0.0170_0.9955_3.2717_0.6053_2.5379_0.6734_6.2068_0.3328.pt"
+load_checkpoint_path = "./checkpoints/Sampled_ImageNet/BasicQuantResNet18V3/202308291624_on_gpu_5/best_epoch_128_0.0222_0.9939_3.2961_0.6021_2.6051_0.6686_6.0602_0.3360.pt"
+checkpoint_desc = "不单位化概念_无正交约束"
 
 ##########################
 # Dataset and DataLoader
@@ -379,7 +380,10 @@ def copy_files_to_folder(file_list, target_folder):
 
 
 for i, image_paths in enumerate(concept_images):
-    output_dir = "./concept_images/"
+    output_dir = os.path.join(
+        os.path.dirname(load_checkpoint_path),
+        checkpoint_desc
+    )
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
     result_image = stitch_images(image_paths, m)

@@ -50,12 +50,12 @@ def generate_tasks(seed_task_elements, parallel, gpus):
 
     new_task_element = seed_task_elements.copy()
     new_task_element["norm_summary"] = True
-    new_task_element["loss_diversity_weight"] = 1
+    new_task_element["grad_factor"] = 1
     tasks.append(new_task_element)
 
     new_task_element = seed_task_elements.copy()
     new_task_element["norm_summary"] = True
-    new_task_element["grad_factor"] = 1
+    new_task_element["loss_diversity_weight"] = 1
     tasks.append(new_task_element)
 
     new_task_element = seed_task_elements.copy()

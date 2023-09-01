@@ -1,194 +1,237 @@
 import os
 import time
-from tqdm import tqdm
+import argparse
+import subprocess
+from multiprocessing import Process
 
-import torch
-import torch.nn as nn
-import torch.optim as optim
-from torch.utils.data import DataLoader
-from torchvision import transforms
-from torchvision.datasets import ImageFolder
 
-from models import ResNet18
-from utils import save, load
-
-##########################
-# Basic settings
-##########################
-
-# USE_DATA_FOLDER = "Caltech-256"
-USE_DATA_FOLDER = "Sampled_ImageNet"
-
-USE_MODEL = "ResNet18"
-
-model_dict = dict()
-model_dict["ResNet18"] = ResNet18
-
-device = "cuda" if torch.cuda.is_available() else "cpu"
-
-num_classes = 256
-n_epoch = 100
-batch_size = 256
-learning_rate = 1e-3
-
-train_data = os.path.join("./data/", USE_DATA_FOLDER, "train")
-eval_data = os.path.join("./data/", USE_DATA_FOLDER, "val")
-eval_major_data = os.path.join("./data/", USE_DATA_FOLDER, "major_val")
-eval_minor_data = os.path.join("./data/", USE_DATA_FOLDER, "minor_val")
-_time = time.strftime("%Y%m%d%H", time.localtime(time.time()))
-
-checkpoint_dir = os.path.join("./logs/", USE_DATA_FOLDER, USE_MODEL, _time)
-if not os.path.exists(checkpoint_dir):
-    os.makedirs(checkpoint_dir)
-
-##########################
-# Dataset and DataLoader
-##########################
-transform = transforms.Compose(
-    [
-        transforms.Resize(256),
-        transforms.CenterCrop(224),
-        transforms.ToTensor(),
-        transforms.Normalize(mean=[0.485, 0.456, 0.406],
-                             std=[0.229, 0.224, 0.225]),
-    ]
+parser = argparse.ArgumentParser(
+    description="Auto run in mode overfit or standard."
 )
 
-# Load the dataset from the directory
-train_dataset = ImageFolder(root=train_data, transform=transform)
-eval_dataset = ImageFolder(root=eval_data, transform=transform)
-
-# major_val 和 minor_val 的类别是 train 和 val 的子集
-tmp_major_dataset = ImageFolder(root=eval_major_data, transform=transform)
-tmp_minor_dataset = ImageFolder(root=eval_minor_data, transform=transform)
+parser.add_argument("--parallel", action="store_true")
+parser.add_argument("--gpus", default=[0], type=int, nargs="*")
 
 
-def major_to_train(target):
-    idx_transform = dict()
-    for key, value in tmp_major_dataset.class_to_idx.items():
-        idx_transform[value] = train_dataset.class_to_idx[key]
-    return idx_transform[target]
+seed_task_elements = {
+    "mode": "standard",
+    "data_folder": "Sampled_ImageNet",
+    # "mode": "overfit",
+    # "data_folder": "Sampled_ImageNet_Val",
+    "model": "BasicQuantResNet18V3",
+    # "model": "ResNet18",
+    "num_concepts": 50,
+    "norm_concepts": True,
+    "norm_summary": False,
+    "grad_factor": 50,
+    "loss_sparsity_weight": 0,
+    "loss_diversity_weight": 0,
+    "supplementary_description": "Search Params on BasicQuantResNet18V3",
+    "num_epochs": 1000,
+    "batch_size": 125,
+    "save_interval": 50
+}
 
 
-def minor_to_train(target):
-    idx_transform = dict()
-    for key, value in tmp_minor_dataset.class_to_idx.items():
-        idx_transform[value] = train_dataset.class_to_idx[key]
-    return idx_transform[target]
+def generate_tasks(seed_task_elements, parallel, gpus):
 
+    tasks = []
 
-eval_major_dataset = ImageFolder(
-    root=eval_major_data, transform=transform, target_transform=major_to_train)
-eval_minor_dataset = ImageFolder(
-    root=eval_minor_data, transform=transform, target_transform=minor_to_train)
+    # new_task_element = seed_task_elements.copy()
+    # tasks.append(new_task_element)
 
+    new_task_element = seed_task_elements.copy()
+    tasks.append(new_task_element)
+    new_task_element = seed_task_elements.copy()
+    tasks.append(new_task_element)
 
-# Create DataLoader instances
-train_loader = DataLoader(
-    train_dataset, batch_size=batch_size, shuffle=True, num_workers=4
-)
-eval_loader = DataLoader(
-    eval_dataset, batch_size=batch_size, shuffle=False, num_workers=4
-)
-eval_major_loader = DataLoader(
-    eval_major_dataset, batch_size=batch_size, shuffle=False, num_workers=4
-)
-eval_minor_loader = DataLoader(
-    eval_minor_dataset, batch_size=batch_size, shuffle=False, num_workers=4
-)
+    # new_task_element = seed_task_elements.copy()
+    # new_task_element["loss_diversity_weight"] = 1
+    # tasks.append(new_task_element)
 
-##########################
-# Model, loss and optimizer
-##########################
+    # new_task_element = seed_task_elements.copy()
+    # new_task_element["norm_summary"] = True
+    # tasks.append(new_task_element)
 
-model = model_dict[USE_MODEL](num_classes).to(device)
-criterion = nn.CrossEntropyLoss()
-optimizer = optim.Adam(model.parameters(), lr=learning_rate)
+    # new_task_element = seed_task_elements.copy()
+    # new_task_element["norm_summary"] = True
+    # new_task_element["grad_factor"] = 1
+    # tasks.append(new_task_element)
 
-##########################
-# Training pipeline
-##########################
+    # new_task_element = seed_task_elements.copy()
+    # new_task_element["norm_summary"] = True
+    # new_task_element["loss_diversity_weight"] = 1
+    # tasks.append(new_task_element)
 
+    # new_task_element = seed_task_elements.copy()
+    # new_task_element["norm_summary"] = True
+    # new_task_element["grad_factor"] = 1
+    # new_task_element["loss_diversity_weight"] = 1
+    # tasks.append(new_task_element)
 
-def run_epoch(desc, model, dataloader, train=False):
-    # train pipeline
-    if train:
-        model.train()
+    if parallel:
+        num_gpus = len(gpus)
+        if len(tasks) > num_gpus:
+            print(f"Only {num_gpus} gpus are available !!!")
+
+        for i, gpu in enumerate(gpus):
+            tasks[i]["gpu"] = gpu
     else:
-        model.eval()
+        for task in tasks:
+            task["gpu"] = gpus[0]
 
-    metric_dict = {"loss": 0.0, "acc": 0.0}
-    step = 0
-    with tqdm(
-        total=len(dataloader),
-        desc=desc,
-        postfix=dict,
-        mininterval=0.3,
-    ) as pbar:
-        for data, targets in dataloader:
-            # data process
-            data = data.to(device)
-            targets = targets.to(device)
-
-            # forward pass
-            if train:
-                outputs = model(data)
-                loss = criterion(outputs, targets)
-
-                # backward pass
-                optimizer.zero_grad()
-                loss.backward()
-                optimizer.step()
-            else:
-                with torch.no_grad():
-                    outputs = model(data)
-                    loss = criterion(outputs, targets)
-
-            # display the metrics
-            with torch.no_grad():
-                acc = (torch.argmax(outputs.data, 1) ==
-                       targets).sum() / targets.size(0)
-            metric_dict["loss"] = (metric_dict["loss"] *
-                                   step + loss.item()) / (step + 1)
-            metric_dict["acc"] = (metric_dict["acc"] *
-                                  step + acc.item()) / (step + 1)
-            pbar.set_postfix(
-                **{
-                    "loss": metric_dict["loss"],
-                    "acc": metric_dict["acc"],
-                }
-            )
-            pbar.update(1)
-
-            step += 1
-    return metric_dict
+    return tasks
 
 
-for epoch in range(n_epoch):
-    # train one epoch
-    desc = f"Training epoch {epoch + 1}/{n_epoch}"
-    train_dict = run_epoch(desc, model, train_loader, train=True)
+def generate_command(task_elements, excute=False):
 
-    # validation
-    desc = "      Validataion"
-    eval_dict = run_epoch(desc, model, eval_loader, train=False)
+    command = [
+        "python",
+        f"{task_elements['mode']}_mode.py",
+    ]
 
-    desc = "Major Validataion"
-    eval_major_dict = run_epoch(desc, model, eval_major_loader, train=False)
+    for key, value in task_elements.items():
+        if key != "mode":
+            command.append(f"--{key}")
+            command.append(f"{value}")
 
-    desc = "Minor Validataion"
-    eval_minor_dict = run_epoch(desc, model, eval_minor_loader, train=False)
-
-    # model checkpoint
-    model_name = "epoch_%d_%.4f_%.4f_%.4f_%.4f_%.4f_%.4f_%.4f_%.4f.pt" % (
-        epoch + 1,
-        train_dict["loss"],
-        train_dict["acc"],
-        eval_dict["loss"],
-        eval_dict["acc"],
-        eval_major_dict["loss"],
-        eval_major_dict["acc"],
-        eval_minor_dict["loss"],
-        eval_minor_dict["acc"]
+    command.append("--summary_log_path")
+    summary_log_dir = os.path.join(
+        "./logs/",
+        task_elements["mode"],
+        task_elements["data_folder"]
     )
-    save(model, os.path.join(checkpoint_dir, model_name))
+    if not os.path.exists(summary_log_dir):
+        os.makedirs(summary_log_dir)
+    command.append(
+        os.path.join(
+            summary_log_dir,
+            "_".join(
+                [
+                    "summary",
+                    "in",
+                    time.strftime("%Y%m%d", time.localtime(time.time()))
+                ]
+            )+".log"
+        )
+    )
+
+    command.append("--detailed_log_path")
+    detailed_log_dir = os.path.join(
+        "./logs/",
+        task_elements["mode"],
+        task_elements["data_folder"],
+        task_elements["model"]
+    )
+    if not os.path.exists(detailed_log_dir):
+        os.makedirs(detailed_log_dir)
+    detailed_log_path = os.path.join(
+        detailed_log_dir,
+        "_".join(
+            [
+                "details",
+                "at",
+                time.strftime("%Y%m%d%H%M%S", time.localtime(time.time()))
+            ]
+        )+".log"
+    )
+    command.append(detailed_log_path)
+
+    if not excute:
+        print("\n")
+        time.sleep(5)
+        print(f"Check Command: {' '.join(command)}")
+        return None
+    else:
+        print("\n")
+        time.sleep(5)
+        print(f"Excute Command: {' '.join(command)}")
+        return command, detailed_log_path
+
+
+def execute_command(command, output_file, gpu):
+    with open(output_file, "w") as f:
+        f.write(" ".join(command))
+        f.write("\n")
+
+    with open(output_file, "a") as f:
+        env = os.environ.copy()
+        env["CUDA_VISIBLE_DEVICES"] = str(gpu)
+        process = subprocess.Popen(
+            command,
+            stdout=f,
+            stderr=subprocess.STDOUT,
+            universal_newlines=True,
+            env=env
+        )
+
+        # # 实时输出stdout和stderr到文件
+        # for line in process.stdout:
+        #     f.write(line)
+
+        # 等待子进程结束并获取返回码
+        return_code = process.wait()
+        if return_code != 0:
+            print(
+                f"Command '{command}' Failed! Return Code: {return_code}\n"
+            )
+
+    with open(output_file, "a") as f:
+        f.write("\n")
+
+
+def execute_commands(commands, output_files, gpus):
+    processes = []
+
+    # 同时执行命令并将输出实时写入到文件
+    for command, output_file, gpu in zip(commands, output_files, gpus):
+        process = Process(
+            target=execute_command, args=(command, output_file, gpu)
+        )
+        process.start()
+        processes.append(process)
+
+    # 等待所有进程执行完毕
+    for process in processes:
+        process.join()
+
+
+def main():
+
+    args = parser.parse_args()
+
+    if not args.parallel:
+        assert len(args.gpus) == 1  # sequence 模式只支持单卡
+
+    print("\n")
+    print("Generating tasks and commands ...")
+    tasks = generate_tasks(seed_task_elements, args.parallel, args.gpus)
+    for task_elements in tasks:
+        generate_command(task_elements, excute=False)
+
+    time.sleep(10)
+    print("\n")
+    if args.parallel:
+        print("Starting to excute commands in parallel !!!")
+        commands = []
+        output_files = []
+        gpus = []
+        for task_elements in tasks:
+            command, output_file = generate_command(task_elements, excute=True)
+            commands.append(command)
+            output_files.append(output_file)
+            gpus.append(task_elements["gpu"])
+        execute_commands(commands, output_files, gpus)
+    else:
+        print(
+            f"Starting to excute commands in sequence on gpu_{args.gpus[0]} !!!"
+        )
+        for task_elements in tasks:
+            command, output_file = generate_command(task_elements, excute=True)
+            execute_command(command, output_file, task_elements["gpu"])
+
+    print("\nEND.")
+
+
+if __name__ == "__main__":
+    main()

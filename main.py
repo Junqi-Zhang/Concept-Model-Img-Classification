@@ -21,12 +21,14 @@ seed_task_elements = {
     "model": "BasicQuantResNet18V3",
     # "model": "ResNet18",
     "num_concepts": 50,
-    "norm_concepts": True,
-    "norm_summary": False,
-    "grad_factor": 50,
+    "num_attended_concepts": 5,
+    "norm_concepts": False,
+    "norm_summary": True,
+    "grad_factor": 1,
     "loss_sparsity_weight": 0,
+    "loss_sparsity_adaptive": False,
     "loss_diversity_weight": 0,
-    "supplementary_description": "Search Params on BasicQuantResNet18V3",
+    "supplementary_description": "Search Params for BasicQuantResNet18V3V4",
     "num_epochs": 1000,
     "batch_size": 125,
     "save_interval": 50
@@ -37,37 +39,55 @@ def generate_tasks(seed_task_elements, parallel, gpus):
 
     tasks = []
 
-    # new_task_element = seed_task_elements.copy()
-    # tasks.append(new_task_element)
-
-    new_task_element = seed_task_elements.copy()
-    tasks.append(new_task_element)
     new_task_element = seed_task_elements.copy()
     tasks.append(new_task_element)
 
-    # new_task_element = seed_task_elements.copy()
-    # new_task_element["loss_diversity_weight"] = 1
-    # tasks.append(new_task_element)
+    new_task_element = seed_task_elements.copy()
+    new_task_element["norm_concepts"] = True
+    tasks.append(new_task_element)
 
-    # new_task_element = seed_task_elements.copy()
-    # new_task_element["norm_summary"] = True
-    # tasks.append(new_task_element)
+    new_task_element = seed_task_elements.copy()
+    new_task_element["loss_sparsity_adaptive"] = True
+    tasks.append(new_task_element)
 
-    # new_task_element = seed_task_elements.copy()
-    # new_task_element["norm_summary"] = True
-    # new_task_element["grad_factor"] = 1
-    # tasks.append(new_task_element)
+    new_task_element = seed_task_elements.copy()
+    new_task_element["norm_concepts"] = True
+    new_task_element["loss_sparsity_adaptive"] = True
+    tasks.append(new_task_element)
 
-    # new_task_element = seed_task_elements.copy()
-    # new_task_element["norm_summary"] = True
-    # new_task_element["loss_diversity_weight"] = 1
-    # tasks.append(new_task_element)
+    new_task_element = seed_task_elements.copy()
+    new_task_element["model"] = "BasicQuantResNet18V4"
+    tasks.append(new_task_element)
 
-    # new_task_element = seed_task_elements.copy()
-    # new_task_element["norm_summary"] = True
-    # new_task_element["grad_factor"] = 1
-    # new_task_element["loss_diversity_weight"] = 1
-    # tasks.append(new_task_element)
+    new_task_element = seed_task_elements.copy()
+    new_task_element["model"] = "BasicQuantResNet18V4"
+    new_task_element["norm_concepts"] = True
+    tasks.append(new_task_element)
+
+    new_task_element = seed_task_elements.copy()
+    new_task_element["model"] = "BasicQuantResNet18V4"
+    new_task_element["loss_sparsity_adaptive"] = True
+    tasks.append(new_task_element)
+
+    new_task_element = seed_task_elements.copy()
+    new_task_element["model"] = "BasicQuantResNet18V4"
+    new_task_element["norm_concepts"] = True
+    new_task_element["loss_sparsity_adaptive"] = True
+    tasks.append(new_task_element)
+
+    new_task_element = seed_task_elements.copy()
+    new_task_element["model"] = "BasicQuantResNet18V4"
+    new_task_element["num_attended_concepts"] = 10
+    new_task_element["norm_concepts"] = True
+    new_task_element["loss_sparsity_adaptive"] = True
+    tasks.append(new_task_element)
+
+    new_task_element = seed_task_elements.copy()
+    new_task_element["model"] = "BasicQuantResNet18V4"
+    new_task_element["num_concepts"] = 250
+    new_task_element["norm_concepts"] = True
+    new_task_element["loss_sparsity_adaptive"] = True
+    tasks.append(new_task_element)
 
     if parallel:
         num_gpus = len(gpus)

@@ -1,4 +1,5 @@
 import os
+import sys
 import json
 import time
 import argparse
@@ -17,6 +18,7 @@ from torch.optim.lr_scheduler import LambdaLR, ReduceLROnPlateau
 from data_folders import PROVIDED_DATA_FOLDERS
 from models import PROVIDED_MODELS
 from utils import save, load
+from utils import capped_lp_norm, orthogonality_l2_norm, PIController
 
 
 ##########################
@@ -31,10 +33,12 @@ parser.add_argument("--data_folder", required=True)
 
 parser.add_argument("--model", required=True)
 parser.add_argument("--num_concepts", default=64, type=int)
+parser.add_argument("--num_attended_concepts", default=5, type=int)
 parser.add_argument("--norm_concepts", default="False")
 parser.add_argument("--norm_summary", default="False")
 parser.add_argument("--grad_factor", default=1, type=int)
 parser.add_argument("--loss_sparsity_weight", default=0.0, type=float)
+parser.add_argument("--loss_sparsity_adaptive", default="False")
 parser.add_argument("--loss_diversity_weight", default=0.0, type=float)
 
 parser.add_argument("--num_epochs", default=100, type=int)
@@ -66,15 +70,18 @@ num_classes = use_data_folder_info["num_classes"]
 
 use_model = args.model
 num_concepts = args.num_concepts
+num_attended_concepts = args.num_attended_concepts
 norm_concepts = eval(args.norm_concepts)
 norm_summary = eval(args.norm_summary)
 grad_factor = args.grad_factor
 loss_sparsity_weight = args.loss_sparsity_weight
+loss_sparsity_adaptive = eval(args.loss_sparsity_adaptive)
 loss_diversity_weight = args.loss_diversity_weight
 
 n_epoch = args.num_epochs
 batch_size = args.batch_size
 learning_rate = 1e-3
+weight_decay = 0.01
 warmup_epochs = 10
 
 save_interval = args.save_interval
@@ -92,7 +99,10 @@ print(f"# Use data_folder: {use_data_folder}, {num_classes} classes in total.")
 print(f"# Use model: {use_model}, includes {num_concepts} concepts.")
 print(f"# Norm Concepts: {norm_concepts}, Norm Summary: {norm_summary}.")
 print(f"# Gradient Factor on Softmax: {grad_factor}.")
-print(f"# Weight for concept  sparsity loss is {loss_sparsity_weight:.4f}.")
+print(
+    f"# Weight for concept  sparsity loss is {loss_sparsity_weight:.4f}, "
+    f"adaptive: {loss_sparsity_adaptive}, target: {num_attended_concepts}."
+)
 print(f"# Weight for concept diversity loss is {loss_diversity_weight:.4f}.")
 print(f"# Train up to {n_epoch} epochs, with barch_size={batch_size}.")
 print(f"# Save model's checkpoint for every {save_interval} epochs,")
@@ -196,9 +206,17 @@ model = PROVIDED_MODELS[use_model](num_classes,
                                    norm_summary,
                                    grad_factor).to(device)
 criterion = nn.CrossEntropyLoss()
+sparsity_controller = PIController(
+    kp=0.001, ki=0.00001,
+    target_metric=num_attended_concepts,
+    initial_weight=loss_sparsity_weight
+)
 
 
-def compute_loss(returned_dict, targets):
+def compute_loss(returned_dict, targets, train=False):
+
+    global loss_sparsity_weight
+
     outputs = returned_dict["outputs"]
 
     # 代码兼容 ResNet18 等常规模型
@@ -213,25 +231,18 @@ def compute_loss(returned_dict, targets):
             loss_sparsity + loss_diversity_weight * loss_diversity
         return loss, loss_classification, loss_sparsity, loss_diversity
 
-    def concept_sparsity_reg():
-        # 熵越小, 分布越不均匀
-        # clamp attention_weights, 避免log2后出现nan
-        return torch.mean(-torch.sum(attention_weights.clamp(min=1e-9) *
-                                     torch.log2(attention_weights.clamp(min=1e-9)), dim=1))
-
-    # 防止 concept 退化, concept 之间要近似正交
-    def concept_diversity_reg():
-        # ideal_similarity 可以调整, 单位阵的假设过强
-        ideal_similarity = torch.eye(
-            num_concepts,
-            dtype=torch.float,
-            device=device
-        )
-        return torch.norm(concept_similarity-ideal_similarity)
-
     loss_classification = criterion(outputs, targets)
-    loss_sparsity = concept_sparsity_reg()
-    loss_diversity = concept_diversity_reg()
+    loss_sparsity = capped_lp_norm(attention_weights)
+    loss_diversity = orthogonality_l2_norm(concept_similarity)
+
+    def compute_s50(attention_weights):
+        with torch.no_grad():
+            s50 = torch.sum(attention_weights > 0, dim=1).median().item()
+        return s50
+
+    if loss_sparsity_adaptive and train:  # 只有训练的时候才能PI控制
+        s50 = compute_s50(attention_weights)
+        loss_sparsity_weight = sparsity_controller.update(s50)
 
     loss = loss_classification + loss_sparsity_weight * \
         loss_sparsity + loss_diversity_weight * loss_diversity
@@ -239,7 +250,9 @@ def compute_loss(returned_dict, targets):
     return loss, loss_classification, loss_sparsity, loss_diversity
 
 
-optimizer = optim.Adam(model.parameters(), lr=learning_rate)
+optimizer = optim.AdamW(
+    model.parameters(), lr=learning_rate, weight_decay=weight_decay
+)
 
 
 # 创建 warmup 调度器
@@ -274,18 +287,20 @@ def run_epoch(desc, model, dataloader, train=False):
         "loss": 0.0,
         "loss_classification": 0.0,
         "loss_sparsity": 0.0,
+        "loss_sparsity_weight": loss_sparsity_weight,
         "loss_diversity": 0.0,
-        "acc": 0.0
+        "acc": 0.0,
+        "s50": -1.0,
+        "s90": -1.0
     }
-
-    attention = []
 
     step = 0
     with tqdm(
         total=len(dataloader),
         desc=desc,
         postfix=dict,
-        mininterval=0.3,
+        mininterval=1,
+        file=sys.stdout
     ) as pbar:
         for data, targets in dataloader:
             # data process
@@ -296,7 +311,7 @@ def run_epoch(desc, model, dataloader, train=False):
             if train:
                 returned_dict = model(data)
                 loss, loss_classification, loss_sparsity, loss_diversity = compute_loss(
-                    returned_dict, targets
+                    returned_dict, targets, train=True
                 )
 
                 # backward pass
@@ -307,54 +322,57 @@ def run_epoch(desc, model, dataloader, train=False):
                 with torch.no_grad():
                     returned_dict = model(data)
                     loss, loss_classification, loss_sparsity, loss_diversity = compute_loss(
-                        returned_dict, targets
+                        returned_dict, targets, train=False
                     )
-            if returned_dict.get("attention_weights", None) is not None:
-                attention.append(
-                    returned_dict["attention_weights"].detach().cpu().numpy()
-                )
 
             # display the metrics
             with torch.no_grad():
                 acc = (torch.argmax(returned_dict["outputs"].data,
                                     1) == targets).sum() / targets.size(0)
+                if returned_dict.get("attention_weights", None) is not None:
+                    c = torch.sum(
+                        (returned_dict.get("attention_weights").data - 1e-3) > 0,
+                        dim=1
+                    ).cpu().numpy()
+                    n_selected_50 = np.percentile(c, 50)
+                    n_selected_90 = np.percentile(c, 90)
+                else:
+                    n_selected_50 = -1
+                    n_selected_90 = -1
+
             metric_dict["loss"] = (metric_dict["loss"] *
                                    step + loss.item()) / (step + 1)
             metric_dict["loss_classification"] = (metric_dict["loss_classification"] *
                                                   step + loss_classification.item()) / (step + 1)
             metric_dict["loss_sparsity"] = (metric_dict["loss_sparsity"] *
                                             step + loss_sparsity.item()) / (step + 1)
+            metric_dict["loss_sparsity_weight"] = loss_sparsity_weight
             metric_dict["loss_diversity"] = (metric_dict["loss_diversity"] *
                                              step + loss_diversity.item()) / (step + 1)
             metric_dict["acc"] = (metric_dict["acc"] *
                                   step + acc.item()) / (step + 1)
+            metric_dict["s50"] = (metric_dict["s50"] *
+                                  step + n_selected_50) / (step + 1)
+            metric_dict["s90"] = (metric_dict["s90"] *
+                                  step + n_selected_90) / (step + 1)
+
             pbar.set_postfix(
                 **{
                     "loss": metric_dict["loss"],
                     "loss_cls": metric_dict["loss_classification"],
                     "loss_sps": metric_dict["loss_sparsity"],
+                    "loss_sps_w": metric_dict["loss_sparsity_weight"],
                     "loss_dvs": metric_dict["loss_diversity"],
-                    "acc": metric_dict["acc"]
+                    "acc": metric_dict["acc"],
+                    "s50": metric_dict["s50"],
+                    "s90": metric_dict["s90"]
                 }
             )
             pbar.update(1)
 
             step += 1
 
-    if len(attention) > 0:
-        analyze_sparsity(attention)
     return metric_dict
-
-
-def analyze_sparsity(attn):
-    baseline = np.mean(attn)
-    percentile_25 = np.percentile(attn, 25) / baseline
-    percentile_50 = np.percentile(attn, 50) / baseline
-    percentile_75 = np.percentile(attn, 75) / baseline
-    percentile_90 = np.percentile(attn, 90) / baseline
-    percentile_99 = np.percentile(attn, 99) / baseline
-    print('25: %.5f, 50: %.5f, 75: %.5f, 90: %.5f, 99: %.5f' % (
-        percentile_25, percentile_50, percentile_75, percentile_90, percentile_99))
 
 
 early_stopped = False
@@ -364,11 +382,15 @@ patience = 20
 best_val_acc = 0
 best_val_acc_major = 0
 best_val_acc_minor = 0
+best_val_s50 = -1
+best_val_s90 = -1
 best_epoch = 0
 best_checkpoint_path = ""
 last_val_acc = 0
 last_val_acc_major = 0
 last_val_acc_minor = 0
+last_val_s50 = -1
+last_val_s90 = -1
 last_epoch = 0
 last_checkpoint_path = ""
 
@@ -404,15 +426,21 @@ for epoch in range(n_epoch):
         f"{eval_major_dict['loss']:.4f}",
         f"{eval_major_dict['acc']:.4f}",
         f"{eval_minor_dict['loss']:.4f}",
-        f"{eval_minor_dict['acc']:.4f}"
+        f"{eval_minor_dict['acc']:.4f}",
+        f"{train_dict['s50']:.1f}",
+        f"{train_dict['s90']:.1f}",
+        f"{eval_dict['s50']:.1f}",
+        f"{eval_dict['s90']:.1f}"
     ]
     model_name = "_".join(model_name_elements) + ".pt"
 
     if eval_dict['acc'] > best_val_acc:
         early_stop_counter = 0
-        best_val_acc = eval_dict['acc']
-        best_val_acc_major = eval_major_dict['acc']
-        best_val_acc_minor = eval_minor_dict['acc']
+        best_val_acc = eval_dict["acc"]
+        best_val_acc_major = eval_major_dict["acc"]
+        best_val_acc_minor = eval_minor_dict["acc"]
+        best_val_s50 = eval_dict["s50"]
+        best_val_s90 = eval_dict["s90"]
         best_epoch = epoch + 1
         if best_checkpoint_path != "":
             os.remove(best_checkpoint_path)
@@ -424,9 +452,11 @@ for epoch in range(n_epoch):
         early_stop_counter += 1
         print(f"early_stop_counter: {early_stop_counter}\n")
 
-    last_val_acc = eval_dict['acc']
-    last_val_acc_major = eval_major_dict['acc']
-    last_val_acc_minor = eval_minor_dict['acc']
+    last_val_acc = eval_dict["acc"]
+    last_val_acc_major = eval_major_dict["acc"]
+    last_val_acc_minor = eval_minor_dict["acc"]
+    last_val_s50 = eval_dict["s50"]
+    last_val_s90 = eval_dict["s90"]
     last_epoch = epoch + 1
     last_checkpoint_path = os.path.join(checkpoint_dir, model_name)
 
@@ -455,26 +485,33 @@ log_elements = {
     "data_folder": use_data_folder,
     "model": use_model,
     "num_concepts": num_concepts,
+    "num_attended_concepts": num_attended_concepts,
     "norm_concepts": norm_concepts,
     "norm_summary": norm_summary,
     "grad_factor": grad_factor,
     "loss_sparsity_weight": loss_sparsity_weight,
+    "loss_sparsity_adaptive": loss_sparsity_adaptive,
     "loss_diversity_weight": loss_diversity_weight,
     "supplementary_description": args.supplementary_description,
     "num_epochs": n_epoch,
     "batch_size": batch_size,
     "learning_rate": learning_rate,
+    "weight_decay": weight_decay,
     "save_interval": save_interval,
     "checkpoint_dir": checkpoint_dir,
     "early_stopped": early_stopped,
     "best_val_acc": best_val_acc,
     "best_val_acc_major": best_val_acc_major,
     "best_val_acc_minor": best_val_acc_minor,
+    "best_val_s50": best_val_s50,
+    "best_val_s90": best_val_s90,
     "best_epoch": best_epoch,
     "best_checkpoint_path": best_checkpoint_path,
     "last_val_acc": last_val_acc,
     "last_val_acc_major": last_val_acc_major,
     "last_val_acc_minor": last_val_acc_minor,
+    "last_val_s50": last_val_s50,
+    "last_val_s90": last_val_s90,
     "last_epoch": last_epoch,
     "last_checkpoint_path": last_checkpoint_path,
     "detailed_log_path": args.detailed_log_path

@@ -147,7 +147,9 @@ eval_transform = transforms.Compose(
 
 # Load the dataset from the directory
 train_dataset = ImageFolder(root=train_data, transform=train_transform)
+train_classes_idx = [idx for idx in train_dataset.class_to_idx.values()]
 eval_dataset = ImageFolder(root=eval_data, transform=eval_transform)
+eval_classes_idx = [idx for idx in eval_dataset.class_to_idx.values()]
 
 # major_val 和 minor_val 的类别是 train 和 val 的子集
 tmp_major_dataset = ImageFolder(root=eval_major_data)
@@ -169,9 +171,17 @@ def minor_to_train(target):
 
 
 eval_major_dataset = ImageFolder(
-    root=eval_major_data, transform=eval_transform, target_transform=major_to_train)
+    root=eval_major_data, transform=eval_transform, target_transform=major_to_train
+)
+eval_major_classes_idx = [
+    major_to_train(idx) for idx in eval_major_dataset.class_to_idx.values()
+]
 eval_minor_dataset = ImageFolder(
-    root=eval_minor_data, transform=eval_transform, target_transform=minor_to_train)
+    root=eval_minor_data, transform=eval_transform, target_transform=minor_to_train
+)
+eval_minor_classes_idx = [
+    minor_to_train(idx) for idx in eval_minor_dataset.class_to_idx.values()
+]
 
 
 # Create DataLoader instances
@@ -276,7 +286,7 @@ plateau_scheduler = ReduceLROnPlateau(
 ##########################
 
 
-def run_epoch(desc, model, dataloader, train=False):
+def run_epoch(desc, model, dataloader, classes_idx, train=False):
     # train pipeline
     if train:
         model.train()
@@ -290,6 +300,7 @@ def run_epoch(desc, model, dataloader, train=False):
         "loss_sparsity_weight": loss_sparsity_weight,
         "loss_diversity": 0.0,
         "acc": 0.0,
+        "acc_subset": 0.0,
         "s50": -1.0,
         "s90": -1.0
     }
@@ -327,8 +338,15 @@ def run_epoch(desc, model, dataloader, train=False):
 
             # display the metrics
             with torch.no_grad():
+
                 acc = (torch.argmax(returned_dict["outputs"].data,
                                     1) == targets).sum() / targets.size(0)
+
+                mask = torch.zeros_like(returned_dict["outputs"].data)
+                mask[:, classes_idx] = 1
+                acc_subset = (torch.argmax(returned_dict["outputs"].data * mask,
+                                           1) == targets).sum() / targets.size(0)
+
                 if returned_dict.get("attention_weights", None) is not None:
                     c = torch.sum(
                         (returned_dict.get("attention_weights").data - 1e-3) > 0,
@@ -351,6 +369,8 @@ def run_epoch(desc, model, dataloader, train=False):
                                              step + loss_diversity.item()) / (step + 1)
             metric_dict["acc"] = (metric_dict["acc"] *
                                   step + acc.item()) / (step + 1)
+            metric_dict["acc_subset"] = (metric_dict["acc_subset"] *
+                                         step + acc_subset.item()) / (step + 1)
             metric_dict["s50"] = (metric_dict["s50"] *
                                   step + n_selected_50) / (step + 1)
             metric_dict["s90"] = (metric_dict["s90"] *
@@ -364,6 +384,7 @@ def run_epoch(desc, model, dataloader, train=False):
                     "loss_sps_w": metric_dict["loss_sparsity_weight"],
                     "loss_dvs": metric_dict["loss_diversity"],
                     "acc": metric_dict["acc"],
+                    "acc_sub": metric_dict["acc_subset"],
                     "s50": metric_dict["s50"],
                     "s90": metric_dict["s90"]
                 }
@@ -377,18 +398,22 @@ def run_epoch(desc, model, dataloader, train=False):
 
 early_stopped = False
 early_stop_counter = 0
-patience = 20
+patience = 50
 
 best_val_acc = 0
 best_val_acc_major = 0
+best_val_acc_subset_major = 0
 best_val_acc_minor = 0
+best_val_acc_subset_minor = 0
 best_val_s50 = -1
 best_val_s90 = -1
 best_epoch = 0
 best_checkpoint_path = ""
 last_val_acc = 0
 last_val_acc_major = 0
+last_val_acc_subset_major = 0
 last_val_acc_minor = 0
+last_val_acc_subset_minor = 0
 last_val_s50 = -1
 last_val_s90 = -1
 last_epoch = 0
@@ -398,35 +423,37 @@ for epoch in range(n_epoch):
 
     # train one epoch
     desc = f"Training epoch {epoch + 1}/{n_epoch}"
-    train_dict = run_epoch(desc, model, train_loader, train=True)
+    train_dict = run_epoch(desc, model, train_loader,
+                           train_classes_idx, train=True)
 
     # validation
     desc = f"Evaluate epoch {epoch + 1}/{n_epoch}"
-    eval_dict = run_epoch(desc, model, eval_loader, train=False)
+    eval_dict = run_epoch(desc, model, eval_loader,
+                          eval_classes_idx, train=False)
 
     desc = f"MajorVal epoch {epoch + 1}/{n_epoch}"
-    eval_major_dict = run_epoch(desc, model, eval_major_loader, train=False)
+    eval_major_dict = run_epoch(desc, model, eval_major_loader,
+                                eval_major_classes_idx, train=False)
 
     desc = f"MinorVal epoch {epoch + 1}/{n_epoch}"
-    eval_minor_dict = run_epoch(desc, model, eval_minor_loader, train=False)
+    eval_minor_dict = run_epoch(desc, model, eval_minor_loader,
+                                eval_minor_classes_idx, train=False)
 
     # 调整学习率
     if epoch < warmup_epochs:
         warmup_scheduler.step()
-    plateau_scheduler.step(eval_dict["acc"])
+    plateau_scheduler.step(eval_dict["acc"])  # 监控验证集整体 acc
 
     # model checkpoint
     model_name_elements = [
         "epoch",
         f"{epoch + 1}",
-        f"{train_dict['loss']:.4f}",
         f"{train_dict['acc']:.4f}",
-        f"{eval_dict['loss']:.4f}",
         f"{eval_dict['acc']:.4f}",
-        f"{eval_major_dict['loss']:.4f}",
         f"{eval_major_dict['acc']:.4f}",
-        f"{eval_minor_dict['loss']:.4f}",
+        f"{eval_major_dict['acc_subset']:.4f}",
         f"{eval_minor_dict['acc']:.4f}",
+        f"{eval_minor_dict['acc_subset']:.4f}",
         f"{train_dict['s50']:.1f}",
         f"{train_dict['s90']:.1f}",
         f"{eval_dict['s50']:.1f}",
@@ -434,11 +461,14 @@ for epoch in range(n_epoch):
     ]
     model_name = "_".join(model_name_elements) + ".pt"
 
-    if eval_dict['acc'] > best_val_acc:
+    # 早停监控 minor acc_subset
+    if eval_minor_dict["acc_subset"] >= best_val_acc_subset_minor:
         early_stop_counter = 0
         best_val_acc = eval_dict["acc"]
         best_val_acc_major = eval_major_dict["acc"]
+        best_val_acc_subset_major = eval_major_dict["acc_subset"]
         best_val_acc_minor = eval_minor_dict["acc"]
+        best_val_acc_subset_minor = eval_minor_dict["acc_subset"]
         best_val_s50 = eval_dict["s50"]
         best_val_s90 = eval_dict["s90"]
         best_epoch = epoch + 1
@@ -454,7 +484,9 @@ for epoch in range(n_epoch):
 
     last_val_acc = eval_dict["acc"]
     last_val_acc_major = eval_major_dict["acc"]
+    last_val_acc_subset_major = eval_major_dict["acc_subset"]
     last_val_acc_minor = eval_minor_dict["acc"]
+    last_val_acc_subset_minor = eval_minor_dict["acc_subset"]
     last_val_s50 = eval_dict["s50"]
     last_val_s90 = eval_dict["s90"]
     last_epoch = epoch + 1
@@ -502,14 +534,18 @@ log_elements = {
     "early_stopped": early_stopped,
     "best_val_acc": best_val_acc,
     "best_val_acc_major": best_val_acc_major,
+    "best_val_acc_subset_major": best_val_acc_subset_major,
     "best_val_acc_minor": best_val_acc_minor,
+    "best_val_acc_subset_minor": best_val_acc_subset_minor,
     "best_val_s50": best_val_s50,
     "best_val_s90": best_val_s90,
     "best_epoch": best_epoch,
     "best_checkpoint_path": best_checkpoint_path,
     "last_val_acc": last_val_acc,
     "last_val_acc_major": last_val_acc_major,
+    "last_val_acc_subset_major": last_val_acc_subset_major,
     "last_val_acc_minor": last_val_acc_minor,
+    "last_val_acc_subset_minor": last_val_acc_subset_minor,
     "last_val_s50": last_val_s50,
     "last_val_s90": last_val_s90,
     "last_epoch": last_epoch,

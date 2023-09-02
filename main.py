@@ -16,19 +16,20 @@ parser.add_argument("--gpus", default=[0], type=int, nargs="*")
 seed_task_elements = {
     "mode": "standard",
     "data_folder": "Sampled_ImageNet",
+    # "data_folder": "Sampled_ImageNet_200x1000_50x100_Seed_6",
     # "mode": "overfit",
     # "data_folder": "Sampled_ImageNet_Val",
-    "model": "BasicQuantResNet18V3",
+    "model": "BasicQuantResNet18V4",
     # "model": "ResNet18",
     "num_concepts": 50,
     "num_attended_concepts": 5,
-    "norm_concepts": False,
+    "norm_concepts": True,
     "norm_summary": True,
     "grad_factor": 1,
     "loss_sparsity_weight": 0,
-    "loss_sparsity_adaptive": False,
+    "loss_sparsity_adaptive": True,
     "loss_diversity_weight": 0,
-    "supplementary_description": "Search Params for BasicQuantResNet18V3V4",
+    "supplementary_description": "Search Params for BasicQuantResNet18V4 with Larger Training Dataset",
     "num_epochs": 1000,
     "batch_size": 125,
     "save_interval": 50
@@ -43,50 +44,44 @@ def generate_tasks(seed_task_elements, parallel, gpus):
     tasks.append(new_task_element)
 
     new_task_element = seed_task_elements.copy()
-    new_task_element["norm_concepts"] = True
-    tasks.append(new_task_element)
-
-    new_task_element = seed_task_elements.copy()
-    new_task_element["loss_sparsity_adaptive"] = True
-    tasks.append(new_task_element)
-
-    new_task_element = seed_task_elements.copy()
-    new_task_element["norm_concepts"] = True
-    new_task_element["loss_sparsity_adaptive"] = True
-    tasks.append(new_task_element)
-
-    new_task_element = seed_task_elements.copy()
-    new_task_element["model"] = "BasicQuantResNet18V4"
-    tasks.append(new_task_element)
-
-    new_task_element = seed_task_elements.copy()
-    new_task_element["model"] = "BasicQuantResNet18V4"
-    new_task_element["norm_concepts"] = True
-    tasks.append(new_task_element)
-
-    new_task_element = seed_task_elements.copy()
-    new_task_element["model"] = "BasicQuantResNet18V4"
-    new_task_element["loss_sparsity_adaptive"] = True
-    tasks.append(new_task_element)
-
-    new_task_element = seed_task_elements.copy()
-    new_task_element["model"] = "BasicQuantResNet18V4"
-    new_task_element["norm_concepts"] = True
-    new_task_element["loss_sparsity_adaptive"] = True
-    tasks.append(new_task_element)
-
-    new_task_element = seed_task_elements.copy()
-    new_task_element["model"] = "BasicQuantResNet18V4"
     new_task_element["num_attended_concepts"] = 10
-    new_task_element["norm_concepts"] = True
-    new_task_element["loss_sparsity_adaptive"] = True
     tasks.append(new_task_element)
 
     new_task_element = seed_task_elements.copy()
-    new_task_element["model"] = "BasicQuantResNet18V4"
     new_task_element["num_concepts"] = 250
-    new_task_element["norm_concepts"] = True
-    new_task_element["loss_sparsity_adaptive"] = True
+    tasks.append(new_task_element)
+
+    new_task_element = seed_task_elements.copy()
+    new_task_element["num_attended_concepts"] = 10
+    new_task_element["num_concepts"] = 250
+    tasks.append(new_task_element)
+
+    new_task_element = seed_task_elements.copy()
+    new_task_element["loss_diversity_weight"] = 1.0
+    tasks.append(new_task_element)
+
+    new_task_element = seed_task_elements.copy()
+    new_task_element["num_attended_concepts"] = 10
+    new_task_element["loss_diversity_weight"] = 1.0
+    tasks.append(new_task_element)
+
+    new_task_element = seed_task_elements.copy()
+    new_task_element["num_concepts"] = 250
+    new_task_element["loss_diversity_weight"] = 1.0
+    tasks.append(new_task_element)
+
+    new_task_element = seed_task_elements.copy()
+    new_task_element["num_attended_concepts"] = 10
+    new_task_element["num_concepts"] = 250
+    new_task_element["loss_diversity_weight"] = 1.0
+    tasks.append(new_task_element)
+
+    new_task_element = seed_task_elements.copy()
+    new_task_element["model"] = "ResNet18"
+    tasks.append(new_task_element)
+
+    new_task_element = seed_task_elements.copy()
+    new_task_element["loss_sparsity_adaptive"] = False
     tasks.append(new_task_element)
 
     if parallel:

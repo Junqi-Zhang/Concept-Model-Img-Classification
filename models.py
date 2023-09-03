@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torchvision.models import resnet18
+from torchvision.models import resnet18, resnet50
 from collections import OrderedDict
 from sparsemax import Sparsemax
 
@@ -11,6 +11,16 @@ class ResNet18(nn.Module):
         super(ResNet18, self).__init__()
 
         self.backbone = resnet18(weights=None, num_classes=num_classes)
+
+    def forward(self, x):
+        return {"outputs": self.backbone(x)}
+
+
+class ResNet50(nn.Module):
+    def __init__(self, num_classes, *args, **kwargs):
+        super(ResNet50, self).__init__()
+
+        self.backbone = resnet50(weights=None, num_classes=num_classes)
 
     def forward(self, x):
         return {"outputs": self.backbone(x)}
@@ -290,10 +300,36 @@ class BasicQuantResNet18V4(nn.Module):
         return self.cq(x)
 
 
+class BasicQuantResNet50V4(nn.Module):
+    def __init__(self, num_classes, num_concepts, norm_concepts=True, grad_factor=1, *args, **kwargs):
+        super(BasicQuantResNet50V4, self).__init__()
+
+        img_classifier = resnet50(weights=None, num_classes=num_classes)
+        self.backbone = nn.Sequential(*list(img_classifier.children())[:-1])
+
+        self.fc = nn.Linear(2048, 512)  # 添加全连接层，将维度从2048映射到512
+
+        self.cq = BasicConceptQuantizationV4(
+            input_dim=512,  # 保持为512，因为我们将ResNet50的输出映射到了512维
+            num_classes=num_classes,
+            num_concepts=num_concepts,
+            norm_concepts=norm_concepts,
+            grad_factor=grad_factor
+        )
+
+    def forward(self, x):
+        x = self.backbone(x)
+        x = x.view(x.size(0), -1)  # 2048维向量 for ResNet50
+        x = self.fc(x)  # 将维度从2048映射到512
+        return self.cq(x)
+
+
 PROVIDED_MODELS = OrderedDict(
     {
         "ResNet18": ResNet18,
         "BasicQuantResNet18V3": BasicQuantResNet18V3,
-        "BasicQuantResNet18V4": BasicQuantResNet18V4
+        "BasicQuantResNet18V4": BasicQuantResNet18V4,
+        "ResNet50": ResNet50,
+        "BasicQuantResNet50V4": BasicQuantResNet50V4
     }
 )

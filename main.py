@@ -15,8 +15,8 @@ parser.add_argument("--gpus", default=[0], type=int, nargs="*")
 
 seed_task_elements = {
     "mode": "standard",
-    "data_folder": "Sampled_ImageNet",
-    # "data_folder": "Sampled_ImageNet_200x1000_50x100_Seed_6",
+    # "data_folder": "Sampled_ImageNet",
+    "data_folder": "Sampled_ImageNet_200x1000_50x100_Seed_6",
     # "mode": "overfit",
     # "data_folder": "Sampled_ImageNet_Val",
     "model": "BasicQuantResNet18V4",
@@ -57,23 +57,21 @@ def generate_tasks(seed_task_elements, parallel, gpus):
     tasks.append(new_task_element)
 
     new_task_element = seed_task_elements.copy()
-    new_task_element["loss_diversity_weight"] = 1.0
+    new_task_element["num_concepts"] = 500
     tasks.append(new_task_element)
 
     new_task_element = seed_task_elements.copy()
     new_task_element["num_attended_concepts"] = 10
-    new_task_element["loss_diversity_weight"] = 1.0
+    new_task_element["num_concepts"] = 500
     tasks.append(new_task_element)
 
     new_task_element = seed_task_elements.copy()
-    new_task_element["num_concepts"] = 250
-    new_task_element["loss_diversity_weight"] = 1.0
+    new_task_element["num_concepts"] = 1000
     tasks.append(new_task_element)
 
     new_task_element = seed_task_elements.copy()
     new_task_element["num_attended_concepts"] = 10
-    new_task_element["num_concepts"] = 250
-    new_task_element["loss_diversity_weight"] = 1.0
+    new_task_element["num_concepts"] = 1000
     tasks.append(new_task_element)
 
     new_task_element = seed_task_elements.copy()

@@ -19,7 +19,7 @@ seed_task_elements = {
     "data_folder": "Sampled_ImageNet_200x1000_50x100_Seed_6",
     # "mode": "overfit",
     # "data_folder": "Sampled_ImageNet_Val",
-    "model": "BasicQuantResNet18V4",
+    "model": "BasicQuantResNet50V4",
     # "model": "ResNet18",
     "num_concepts": 50,
     "num_attended_concepts": 5,
@@ -29,7 +29,7 @@ seed_task_elements = {
     "loss_sparsity_weight": 0,
     "loss_sparsity_adaptive": True,
     "loss_diversity_weight": 0,
-    "supplementary_description": "Search Params for BasicQuantResNet18V4 with Larger Training Dataset",
+    "supplementary_description": "Search Params for BasicQuantResNet50V4 with Larger Training Dataset",
     "num_epochs": 1000,
     "batch_size": 125,
     "save_interval": 50
@@ -75,7 +75,7 @@ def generate_tasks(seed_task_elements, parallel, gpus):
     tasks.append(new_task_element)
 
     new_task_element = seed_task_elements.copy()
-    new_task_element["model"] = "ResNet18"
+    new_task_element["model"] = "ResNet50"
     tasks.append(new_task_element)
 
     new_task_element = seed_task_elements.copy()

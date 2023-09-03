@@ -40,44 +40,54 @@ def generate_tasks(seed_task_elements, parallel, gpus):
 
     tasks = []
 
+    # gpu 0
     new_task_element = seed_task_elements.copy()
     tasks.append(new_task_element)
 
+    # gpu 1
     new_task_element = seed_task_elements.copy()
     new_task_element["num_attended_concepts"] = 10
     tasks.append(new_task_element)
 
+    # gpu 2
     new_task_element = seed_task_elements.copy()
     new_task_element["num_concepts"] = 250
     tasks.append(new_task_element)
 
+    # gpu 3
     new_task_element = seed_task_elements.copy()
     new_task_element["num_attended_concepts"] = 10
     new_task_element["num_concepts"] = 250
     tasks.append(new_task_element)
 
+    # gpu 4
     new_task_element = seed_task_elements.copy()
     new_task_element["num_concepts"] = 500
     tasks.append(new_task_element)
 
+    # gpu 5
     new_task_element = seed_task_elements.copy()
     new_task_element["num_attended_concepts"] = 10
     new_task_element["num_concepts"] = 500
     tasks.append(new_task_element)
 
+    # gpu 6
     new_task_element = seed_task_elements.copy()
     new_task_element["num_concepts"] = 1000
     tasks.append(new_task_element)
 
+    # gpu 7
     new_task_element = seed_task_elements.copy()
     new_task_element["num_attended_concepts"] = 10
     new_task_element["num_concepts"] = 1000
     tasks.append(new_task_element)
 
+    # gpu 8
     new_task_element = seed_task_elements.copy()
     new_task_element["model"] = "ResNet50"
     tasks.append(new_task_element)
 
+    # gpu 9
     new_task_element = seed_task_elements.copy()
     new_task_element["loss_sparsity_adaptive"] = False
     tasks.append(new_task_element)

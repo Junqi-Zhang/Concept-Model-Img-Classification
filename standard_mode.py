@@ -155,19 +155,22 @@ eval_classes_idx = [idx for idx in eval_dataset.class_to_idx.values()]
 tmp_major_dataset = ImageFolder(root=eval_major_data)
 tmp_minor_dataset = ImageFolder(root=eval_minor_data)
 
+major_to_train_idx_transform = dict()
+for key, value in tmp_major_dataset.class_to_idx.items():
+    major_to_train_idx_transform[value] = train_dataset.class_to_idx[key]
+
 
 def major_to_train(target):
-    idx_transform = dict()
-    for key, value in tmp_major_dataset.class_to_idx.items():
-        idx_transform[value] = train_dataset.class_to_idx[key]
-    return idx_transform[target]
+    return major_to_train_idx_transform[target]
+
+
+minor_to_train_idx_transform = dict()
+for key, value in tmp_minor_dataset.class_to_idx.items():
+    minor_to_train_idx_transform[value] = train_dataset.class_to_idx[key]
 
 
 def minor_to_train(target):
-    idx_transform = dict()
-    for key, value in tmp_minor_dataset.class_to_idx.items():
-        idx_transform[value] = train_dataset.class_to_idx[key]
-    return idx_transform[target]
+    return minor_to_train_idx_transform[target]
 
 
 eval_major_dataset = ImageFolder(

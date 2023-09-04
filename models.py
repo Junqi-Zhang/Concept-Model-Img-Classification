@@ -279,6 +279,82 @@ class BasicQuantResNet18V3(nn.Module):
         return self.cq(x)
 
 
+class ContrastiveImgClassifier(nn.Module):
+    def __init__(self, input_dim, num_classes):
+        super(ContrastiveImgClassifier, self).__init__()
+
+        self.post_layernorm = nn.LayerNorm(input_dim)
+
+        # 图像空间到图文联合空间的可学习映射矩阵
+        self.image_projection = nn.Parameter(
+            torch.Tensor(input_dim, input_dim)
+        )  # D * D
+
+        # 分类层
+        self.clf = nn.Parameter(
+            torch.Tensor(num_classes, input_dim)
+        )  # K * D, K represents the num_classes
+
+        # scaler
+        self.logit_scale = nn.Parameter(torch.tensor(0.0))
+
+        # 参数初始化
+        self.init_parameters()
+
+    def init_parameters(self):
+        # 初始化图像空间到图文联合空间的映射矩阵
+        nn.init.xavier_uniform_(self.image_projection)
+        # 初始化 clf
+        nn.init.xavier_uniform_(self.clf)
+
+    def forward(self, x):
+        x = self.post_layernorm(x)  # 对齐 CLIP post_layernorm
+        image_embeds = torch.matmul(
+            x, self.image_projection
+        )  # B * D, 对齐 CLIP 向图文空间映射
+
+        # 对齐 CLIP 按L2范数对 image_embeds 进行归一化
+        image_embeds = torch.div(
+            image_embeds,
+            torch.norm(image_embeds, dim=1, p=2).view(-1, 1)
+        )  # B * D
+
+        # 对齐 CLIP 给分类权重增加噪声
+        clf = self.clf + (torch.rand_like(self.clf) - 0.5) * 0.01
+        # 按L2范数对 clf 进行归一化
+        clf = torch.div(
+            clf,
+            torch.norm(clf, dim=1, p=2).view(-1, 1)
+        )  # K * D
+
+        # The shape of output is B * K,
+        # where K represents num_classes.
+        logit_scale = self.logit_scale.exp()
+        outputs = torch.matmul(
+            image_embeds, clf.t()
+        ) * logit_scale  # B * K
+
+        return {"outputs": outputs}
+
+
+class ContrastiveResNet18(nn.Module):
+    def __init__(self, num_classes, *args, **kwargs):
+        super(ContrastiveResNet18, self).__init__()
+
+        img_classifier = resnet18(weights=None, num_classes=num_classes)
+        self.backbone = nn.Sequential(*list(img_classifier.children())[:-1])
+
+        self.clf = ContrastiveImgClassifier(
+            input_dim=512,
+            num_classes=num_classes
+        )
+
+    def forward(self, x):
+        x = self.backbone(x)
+        x = x.view(x.size(0), -1)  # 512维向量 for ResNet18
+        return self.clf(x)
+
+
 class BasicQuantResNet18V4(nn.Module):
     def __init__(self, num_classes, num_concepts, norm_concepts=True, grad_factor=1, *args, **kwargs):
         super(BasicQuantResNet18V4, self).__init__()
@@ -327,6 +403,7 @@ class BasicQuantResNet50V4(nn.Module):
 PROVIDED_MODELS = OrderedDict(
     {
         "ResNet18": ResNet18,
+        "ContrastiveResNet18": ContrastiveResNet18,
         "BasicQuantResNet18V3": BasicQuantResNet18V3,
         "BasicQuantResNet18V4": BasicQuantResNet18V4,
         "ResNet50": ResNet50,

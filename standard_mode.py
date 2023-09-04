@@ -314,7 +314,8 @@ def run_epoch(desc, model, dataloader, classes_idx, train=False):
         desc=desc,
         postfix=dict,
         mininterval=1,
-        file=sys.stdout
+        file=sys.stdout,
+        dynamic_ncols=True
     ) as pbar:
         for data, targets in dataloader:
             # data process

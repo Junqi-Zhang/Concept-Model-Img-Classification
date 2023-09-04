@@ -23,13 +23,13 @@ seed_task_elements = {
     # "model": "ResNet18",
     "num_concepts": 50,
     "num_attended_concepts": 5,
-    "norm_concepts": True,
+    "norm_concepts": False,
     "norm_summary": False,
     "grad_factor": 50,
     "loss_sparsity_weight": 0,
     "loss_sparsity_adaptive": False,
     "loss_diversity_weight": 0,
-    "supplementary_description": "Test ContrastiveResNet18 and BasicQuantResNet18V3 without norm_summary",
+    "supplementary_description": "Test BasicQuantResNet18V3 without norm_summary and norm_concepts",
     "num_epochs": 1000,
     # "batch_size": 125,
     "batch_size": 125,
@@ -43,7 +43,6 @@ def generate_tasks(seed_task_elements, parallel, gpus):
 
     # task 0
     new_task_element = seed_task_elements.copy()
-    new_task_element["model"] = "ContrastiveResNet18"
     tasks.append(new_task_element)
 
     # task 1

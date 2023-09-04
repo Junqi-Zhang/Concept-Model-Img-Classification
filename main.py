@@ -32,7 +32,7 @@ seed_task_elements = {
     "supplementary_description": "Search Params for BasicQuantResNet50V4 with Larger Training Dataset",
     "num_epochs": 1000,
     # "batch_size": 125,
-    "batch_size": 100,
+    "batch_size": 75,
     "save_interval": 50
 }
 

@@ -402,7 +402,7 @@ def run_epoch(desc, model, dataloader, classes_idx, train=False):
 
 early_stopped = False
 early_stop_counter = 0
-patience = 50
+patience = 30
 
 best_val_acc = 0
 best_val_acc_major = 0

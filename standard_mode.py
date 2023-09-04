@@ -410,8 +410,10 @@ best_val_acc_minor = 0
 best_val_acc_subset_minor = 0
 best_val_s50 = -1
 best_val_s90 = -1
+best_val_loss_dvs = 0
 best_epoch = 0
 best_checkpoint_path = ""
+
 last_val_acc = 0
 last_val_acc_major = 0
 last_val_acc_subset_major = 0
@@ -419,6 +421,7 @@ last_val_acc_minor = 0
 last_val_acc_subset_minor = 0
 last_val_s50 = -1
 last_val_s90 = -1
+last_val_loss_dvs = 0
 last_epoch = 0
 last_checkpoint_path = ""
 
@@ -460,7 +463,8 @@ for epoch in range(n_epoch):
         f"{train_dict['s50']:.1f}",
         f"{train_dict['s90']:.1f}",
         f"{eval_dict['s50']:.1f}",
-        f"{eval_dict['s90']:.1f}"
+        f"{eval_dict['s90']:.1f}",
+        f"{train_dict['loss_diversity']:.1f}"
     ]
     model_name = "_".join(model_name_elements) + ".pt"
 
@@ -474,6 +478,7 @@ for epoch in range(n_epoch):
         best_val_acc_subset_minor = eval_minor_dict["acc_subset"]
         best_val_s50 = eval_dict["s50"]
         best_val_s90 = eval_dict["s90"]
+        best_val_loss_dvs = train_dict["loss_diversity"]
         best_epoch = epoch + 1
         if best_checkpoint_path != "":
             os.remove(best_checkpoint_path)
@@ -492,6 +497,7 @@ for epoch in range(n_epoch):
     last_val_acc_subset_minor = eval_minor_dict["acc_subset"]
     last_val_s50 = eval_dict["s50"]
     last_val_s90 = eval_dict["s90"]
+    last_val_loss_dvs = train_dict["loss_diversity"]
     last_epoch = epoch + 1
     last_checkpoint_path = os.path.join(checkpoint_dir, model_name)
 
@@ -542,6 +548,7 @@ log_elements = {
     "best_val_acc_subset_minor": best_val_acc_subset_minor,
     "best_val_s50": best_val_s50,
     "best_val_s90": best_val_s90,
+    "best_val_loss_dvs": best_val_loss_dvs,
     "best_epoch": best_epoch,
     "best_checkpoint_path": best_checkpoint_path,
     "last_val_acc": last_val_acc,
@@ -551,6 +558,7 @@ log_elements = {
     "last_val_acc_subset_minor": last_val_acc_subset_minor,
     "last_val_s50": last_val_s50,
     "last_val_s90": last_val_s90,
+    "last_val_loss_dvs": last_val_loss_dvs,
     "last_epoch": last_epoch,
     "last_checkpoint_path": last_checkpoint_path,
     "detailed_log_path": args.detailed_log_path

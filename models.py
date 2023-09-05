@@ -544,6 +544,7 @@ PROVIDED_MODELS = OrderedDict(
     {
         "ResNet18": ResNet18,
         "ContrastiveResNet18": ContrastiveResNet18,
+        "BasicQuantResNet18V2": BasicQuantResNet18V2,
         "BasicQuantResNet18V3": BasicQuantResNet18V3,
         "BasicQuantResNet18V4": BasicQuantResNet18V4,
         "ResNet50": ResNet50,

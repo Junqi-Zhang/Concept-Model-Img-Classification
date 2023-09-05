@@ -30,14 +30,15 @@ class FcV2(nn.Module):
     def __init__(self, input_dim, num_classes):
         super(FcV2, self).__init__()
         self.fc1 = nn.Linear(input_dim, 50, bias=False)  # 设置为无偏置层
-        # self.fc2 = nn.Linear(50, input_dim, bias=False)  # 设置为无偏置层
+        self.fc2 = nn.Linear(50, input_dim, bias=False)  # 设置为无偏置层
         self.fc3 = nn.Linear(input_dim, num_classes)
 
     def forward(self, x):
-        x = F.softmax(self.fc1(x), dim=1)
-        x = x * 50  # 放大softmax输出50倍
-        # x = self.fc2(x)
-        x = F.linear(x, self.fc1.weight.t())  # 使用第一层权重矩阵的转置作为第二层的权重矩阵
+        # x = F.softmax(self.fc1(x), dim=1)
+        x = torch.sigmoid(self.fc1(x))  # 将激活函数改为sigmoid
+        # x = x * 50  # 放大softmax输出50倍
+        x = self.fc2(x)
+        # x = F.linear(x, self.fc1.weight.t())  # 使用第一层权重矩阵的转置作为第二层的权重矩阵
         x = self.fc3(x)
         return {"outputs": x}
 

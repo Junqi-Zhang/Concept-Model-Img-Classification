@@ -29,7 +29,7 @@ seed_task_elements = {
     "loss_sparsity_weight": 0,
     "loss_sparsity_adaptive": False,
     "loss_diversity_weight": 0,
-    "supplementary_description": "Test BasicQuantResNet18V3 without norm_summary and norm_concepts",
+    "supplementary_description": "Check BasicQuantResNet18V3 Details",
     "num_epochs": 1000,
     # "batch_size": 125,
     "batch_size": 125,
@@ -45,9 +45,9 @@ def generate_tasks(seed_task_elements, parallel, gpus):
     new_task_element = seed_task_elements.copy()
     tasks.append(new_task_element)
 
-    # task 1
-    new_task_element = seed_task_elements.copy()
-    tasks.append(new_task_element)
+    # # task 1
+    # new_task_element = seed_task_elements.copy()
+    # tasks.append(new_task_element)
 
     if parallel:
         num_gpus = len(gpus)

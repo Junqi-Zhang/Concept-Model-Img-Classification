@@ -19,7 +19,7 @@ seed_task_elements = {
     "data_folder": "Sampled_ImageNet_200x1000_50x100_Seed_6",
     # "mode": "overfit",
     # "data_folder": "Sampled_ImageNet_Val",
-    "model": "BasicQuantResNet18V3",
+    "model": "ResNet18FcV2",
     # "model": "ResNet18",
     "num_concepts": 50,
     "num_attended_concepts": 5,
@@ -29,7 +29,7 @@ seed_task_elements = {
     "loss_sparsity_weight": 0,
     "loss_sparsity_adaptive": False,
     "loss_diversity_weight": 0,
-    "supplementary_description": "Check BasicQuantResNet18V2 V3 Details",
+    "supplementary_description": "Check ResNet18FcV2 without tying",
     "num_epochs": 1000,
     # "batch_size": 125,
     "batch_size": 125,
@@ -45,16 +45,16 @@ def generate_tasks(seed_task_elements, parallel, gpus):
     new_task_element = seed_task_elements.copy()
     tasks.append(new_task_element)
 
-    # task 1
-    new_task_element = seed_task_elements.copy()
-    new_task_element["model"] = "BasicQuantResNet18V2"
-    tasks.append(new_task_element)
+    # # task 1
+    # new_task_element = seed_task_elements.copy()
+    # new_task_element["model"] = "BasicQuantResNet18V2"
+    # tasks.append(new_task_element)
 
-    # task 2
-    new_task_element = seed_task_elements.copy()
-    new_task_element["model"] = "BasicQuantResNet18V2"
-    new_task_element["grad_factor"] = 1
-    tasks.append(new_task_element)
+    # # task 2
+    # new_task_element = seed_task_elements.copy()
+    # new_task_element["model"] = "BasicQuantResNet18V2"
+    # new_task_element["grad_factor"] = 1
+    # tasks.append(new_task_element)
 
     if parallel:
         num_gpus = len(gpus)

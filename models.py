@@ -26,6 +26,22 @@ class ResNet50(nn.Module):
         return {"outputs": self.backbone(x)}
 
 
+class FcV2(nn.Module):
+    def __init__(self, input_dim, num_classes):
+        super(FcV2, self).__init__()
+        self.fc1 = nn.Linear(input_dim, 50, bias=False)  # 设置为无偏置层
+        self.fc2 = nn.Linear(50, input_dim, bias=False)  # 设置为无偏置层
+        self.fc3 = nn.Linear(input_dim, num_classes)
+
+    def forward(self, x):
+        x = F.softmax(self.fc1(x), dim=1)
+        x = x * 50  # 放大softmax输出50倍
+        x = self.fc2(x)
+        # x = F.linear(x, self.fc1.weight.t())  # 使用第一层权重矩阵的转置作为第二层的权重矩阵
+        x = self.fc3(x)
+        return {"outputs": x}
+
+
 class BasicConceptQuantizationV2(nn.Module):
     def __init__(self, input_dim, num_classes, num_concepts, norm_concepts, norm_summary, grad_factor):
         super(BasicConceptQuantizationV2, self).__init__()
@@ -397,6 +413,24 @@ class BasicQuantResNet18V2(nn.Module):
         return self.cq(x)
 
 
+class ResNet18FcV2(nn.Module):
+    def __init__(self, num_classes, *args, **kwargs):
+        super(ResNet18FcV2, self).__init__()
+
+        img_classifier = resnet18(weights=None, num_classes=num_classes)
+        self.backbone = nn.Sequential(*list(img_classifier.children())[:-1])
+
+        self.cq = FcV2(
+            input_dim=512,
+            num_classes=num_classes
+        )
+
+    def forward(self, x):
+        x = self.backbone(x)
+        x = x.view(x.size(0), -1)  # 512维向量 for ResNet18
+        return self.cq(x)
+
+
 class BasicQuantResNet18V3(nn.Module):
     def __init__(self, num_classes, num_concepts, norm_concepts, norm_summary, grad_factor, *args, **kwargs):
         super(BasicQuantResNet18V3, self).__init__()
@@ -545,6 +579,7 @@ PROVIDED_MODELS = OrderedDict(
         "ResNet18": ResNet18,
         "ContrastiveResNet18": ContrastiveResNet18,
         "BasicQuantResNet18V2": BasicQuantResNet18V2,
+        "ResNet18FcV2": ResNet18FcV2,
         "BasicQuantResNet18V3": BasicQuantResNet18V3,
         "BasicQuantResNet18V4": BasicQuantResNet18V4,
         "ResNet50": ResNet50,

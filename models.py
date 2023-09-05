@@ -79,7 +79,8 @@ class BasicConceptQuantizationV3(nn.Module):
         # The shape of x should be B * D,
         # where B represents the batch_size.
 
-        if self.norm_concepts:
+        # if self.norm_concepts:
+        if False:
             concepts = torch.div(
                 self.concepts,
                 torch.norm(self.concepts, dim=1, p=2).view(-1, 1)
@@ -100,7 +101,8 @@ class BasicConceptQuantizationV3(nn.Module):
         concept_summary = torch.matmul(
             attention_weights * self.grad_factor, value
         )  # B * D
-        if self.norm_summary:
+        # if self.norm_summary:
+        if False:
             # 按L2范数对concept_summary进行归一化
             concept_summary = torch.div(
                 concept_summary,

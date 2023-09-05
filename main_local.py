@@ -29,7 +29,7 @@ seed_task_elements = {
     "loss_sparsity_weight": 0,
     "loss_sparsity_adaptive": False,
     "loss_diversity_weight": 0,
-    "supplementary_description": "Check ResNet18FcV2 without tying",
+    "supplementary_description": "Check ResNet18FcV2 tying",
     "num_epochs": 1000,
     # "batch_size": 125,
     "batch_size": 125,

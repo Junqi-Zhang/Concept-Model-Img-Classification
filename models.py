@@ -16,6 +16,21 @@ class ResNet18(nn.Module):
         return {"outputs": self.backbone(x)}
 
 
+class ResNet18AddFc(nn.Module):
+    def __init__(self, num_classes, *args, **kwargs):
+        super(ResNet18AddFc, self).__init__()
+
+        backbone_dim = 5
+        self.backbone = resnet18(weights=None, num_classes=backbone_dim)
+        self.fc = nn.Linear(backbone_dim, num_classes)
+
+    def forward(self, x):
+        x = self.backbone(x)
+        x = torch.sigmoid(x)
+        x = self.fc(x)
+        return {"outputs": x}
+
+
 class ResNet50(nn.Module):
     def __init__(self, num_classes, *args, **kwargs):
         super(ResNet50, self).__init__()
@@ -578,6 +593,7 @@ class BasicQuantResNet50V4(nn.Module):
 PROVIDED_MODELS = OrderedDict(
     {
         "ResNet18": ResNet18,
+        "ResNet18AddFc": ResNet18AddFc,
         "ContrastiveResNet18": ContrastiveResNet18,
         "BasicQuantResNet18V2": BasicQuantResNet18V2,
         "ResNet18FcV2": ResNet18FcV2,

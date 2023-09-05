@@ -35,9 +35,9 @@ class FcV2(nn.Module):
 
     def forward(self, x):
         # x = F.softmax(self.fc1(x), dim=1)
-        x = torch.sigmoid(self.fc1(x))  # 将激活函数改为sigmoid
+        # x = torch.sigmoid(self.fc1(x))  # 将激活函数改为sigmoid
         # x = x * 50  # 放大softmax输出50倍
-        x = self.fc2(x)
+        # x = self.fc2(x)
         # x = F.linear(x, self.fc1.weight.t())  # 使用第一层权重矩阵的转置作为第二层的权重矩阵
         x = self.fc3(x)
         return {"outputs": x}

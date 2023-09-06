@@ -6,3 +6,4 @@ __pycache__/
 /concept_images/
 
 *.tar.gz
+*.xlsx

@@ -10,6 +10,16 @@ CALTECH_256 = OrderedDict(
     }
 )
 
+SAMPLED_IMAGENET_200X1000_200X25_SEED_6 = OrderedDict(
+    {
+        "num_classes": 250,
+        "train_folder_path": os.path.join("./data/", "Sampled_ImageNet_200x1000_200x25_Seed_6", "train"),
+        "val_folder_path": os.path.join("./data/", "Sampled_ImageNet_200x1000_200x25_Seed_6", "val"),
+        "major_val_folder_path": os.path.join("./data/", "Sampled_ImageNet_200x1000_200x25_Seed_6", "major_val"),
+        "minor_val_folder_path": os.path.join("./data/", "Sampled_ImageNet_200x1000_200x25_Seed_6", "minor_val")
+    }
+)
+
 SAMPLED_IMAGENET_200X1000_50X100_SEED_6 = OrderedDict(
     {
         "num_classes": 250,
@@ -41,6 +51,7 @@ SAMPLED_IMAGENET_VAL = OrderedDict(
 PROVIDED_DATA_FOLDERS = OrderedDict(
     {
         "Caltech-256": CALTECH_256,
+        "Sampled_ImageNet_200x1000_200x25_Seed_6": SAMPLED_IMAGENET_200X1000_200X25_SEED_6,
         "Sampled_ImageNet_200x1000_50x100_Seed_6": SAMPLED_IMAGENET_200X1000_50X100_SEED_6,
         "Sampled_ImageNet": SAMPLED_IMAGENET,
         "Sampled_ImageNet_Val": SAMPLED_IMAGENET_VAL

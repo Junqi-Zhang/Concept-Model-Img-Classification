@@ -16,10 +16,10 @@ parser.add_argument("--gpus", default=[0], type=int, nargs="*")
 seed_task_elements = {
     "mode": "standard",
     # "data_folder": "Sampled_ImageNet",
-    "data_folder": "Sampled_ImageNet_200x1000_50x100_Seed_6",
+    "data_folder": "Sampled_ImageNet_200x1000_200x25_Seed_6",
     # "mode": "overfit",
     # "data_folder": "Sampled_ImageNet_Val",
-    "model": "BasicQuantResNet50V4",
+    "model": "BasicQuantResNet18V4",
     # "model": "ResNet18",
     "num_concepts": 50,
     "num_attended_concepts": 5,
@@ -29,10 +29,10 @@ seed_task_elements = {
     "loss_sparsity_weight": 0,
     "loss_sparsity_adaptive": True,
     "loss_diversity_weight": 0,
-    "supplementary_description": "Search Params for BasicQuantResNet50V4 with Larger Training Dataset",
+    "supplementary_description": "Search Params for BasicQuantResNet18V4 with Minor-200x25 Dataset",
     "num_epochs": 1000,
-    # "batch_size": 125,
-    "batch_size": 75,
+    "batch_size": 125,
+    # "batch_size": 75,
     "save_interval": 50
 }
 
@@ -41,57 +41,57 @@ def generate_tasks(seed_task_elements, parallel, gpus):
 
     tasks = []
 
-    # # gpu 0
-    # new_task_element = seed_task_elements.copy()
-    # tasks.append(new_task_element)
+    # gpu 0
+    new_task_element = seed_task_elements.copy()
+    tasks.append(new_task_element)
 
-    # # gpu 1
-    # new_task_element = seed_task_elements.copy()
-    # new_task_element["num_attended_concepts"] = 10
-    # tasks.append(new_task_element)
+    # gpu 1
+    new_task_element = seed_task_elements.copy()
+    new_task_element["num_attended_concepts"] = 10
+    tasks.append(new_task_element)
 
-    # # gpu 2
-    # new_task_element = seed_task_elements.copy()
-    # new_task_element["num_concepts"] = 250
-    # tasks.append(new_task_element)
+    # gpu 2
+    new_task_element = seed_task_elements.copy()
+    new_task_element["num_attended_concepts"] = 20
+    tasks.append(new_task_element)
 
-    # # gpu 3
-    # new_task_element = seed_task_elements.copy()
-    # new_task_element["num_attended_concepts"] = 10
-    # new_task_element["num_concepts"] = 250
-    # tasks.append(new_task_element)
+    # gpu 3
+    new_task_element = seed_task_elements.copy()
+    new_task_element["loss_sparsity_adaptive"] = False
+    tasks.append(new_task_element)
 
-    # # gpu 4
-    # new_task_element = seed_task_elements.copy()
-    # new_task_element["num_concepts"] = 500
-    # tasks.append(new_task_element)
+    # gpu 4
+    new_task_element = seed_task_elements.copy()
+    new_task_element["num_concepts"] = 500
+    tasks.append(new_task_element)
 
-    # # gpu 5
-    # new_task_element = seed_task_elements.copy()
-    # new_task_element["num_attended_concepts"] = 10
-    # new_task_element["num_concepts"] = 500
-    # tasks.append(new_task_element)
+    # gpu 5
+    new_task_element = seed_task_elements.copy()
+    new_task_element["num_attended_concepts"] = 10
+    new_task_element["num_concepts"] = 500
+    tasks.append(new_task_element)
 
     # gpu 6
     new_task_element = seed_task_elements.copy()
-    new_task_element["num_concepts"] = 1000
+    new_task_element["num_attended_concepts"] = 20
+    new_task_element["num_concepts"] = 500
     tasks.append(new_task_element)
 
     # gpu 7
     new_task_element = seed_task_elements.copy()
-    new_task_element["num_attended_concepts"] = 10
-    new_task_element["num_concepts"] = 1000
+    new_task_element["loss_sparsity_adaptive"] = False
+    new_task_element["num_concepts"] = 500
     tasks.append(new_task_element)
 
-    # # gpu 8
-    # new_task_element = seed_task_elements.copy()
-    # new_task_element["model"] = "ResNet50"
-    # tasks.append(new_task_element)
+    # gpu 8
+    new_task_element = seed_task_elements.copy()
+    new_task_element["model"] = "ResNet18"
+    tasks.append(new_task_element)
 
-    # # gpu 9
-    # new_task_element = seed_task_elements.copy()
-    # new_task_element["loss_sparsity_adaptive"] = False
-    # tasks.append(new_task_element)
+    # gpu 9
+    new_task_element = seed_task_elements.copy()
+    new_task_element["model"] = "ContrastiveResNet18"
+    tasks.append(new_task_element)
 
     if parallel:
         num_gpus = len(gpus)

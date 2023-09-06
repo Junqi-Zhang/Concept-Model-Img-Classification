@@ -97,6 +97,7 @@ def generate_tasks(seed_task_elements, parallel, gpus):
         num_gpus = len(gpus)
         if len(tasks) > num_gpus:
             print(f"Only {num_gpus} gpus are available !!!")
+            tasks = tasks[:num_gpus]
 
         for i, gpu in enumerate(gpus):
             tasks[i]["gpu"] = gpu

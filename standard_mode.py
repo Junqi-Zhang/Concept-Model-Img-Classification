@@ -281,7 +281,7 @@ warmup_scheduler = LambdaLR(
 )
 
 plateau_scheduler = ReduceLROnPlateau(
-    optimizer, mode="max", factor=0.5, patience=10, verbose=True
+    optimizer, mode="max", factor=0.5, patience=5, verbose=True
 )
 
 ##########################
@@ -402,7 +402,7 @@ def run_epoch(desc, model, dataloader, classes_idx, train=False):
 
 early_stopped = False
 early_stop_counter = 0
-patience = 30
+patience = 20
 
 best_train_acc = 0
 best_val_acc = 0
@@ -451,7 +451,7 @@ for epoch in range(n_epoch):
     # 调整学习率
     if epoch < warmup_epochs:
         warmup_scheduler.step()
-    plateau_scheduler.step(eval_dict["acc"])  # 监控验证集整体 acc
+    plateau_scheduler.step(eval_minor_dict["acc_subset"])  # 监控 minor 内部 acc
 
     # model checkpoint
     model_name_elements = [

@@ -12,7 +12,7 @@ CALTECH_256 = OrderedDict(
 
 SAMPLED_IMAGENET_200X1000_200X25_SEED_6 = OrderedDict(
     {
-        "num_classes": 250,
+        "num_classes": 400,
         "train_folder_path": os.path.join("./data/", "Sampled_ImageNet_200x1000_200x25_Seed_6", "train"),
         "val_folder_path": os.path.join("./data/", "Sampled_ImageNet_200x1000_200x25_Seed_6", "val"),
         "major_val_folder_path": os.path.join("./data/", "Sampled_ImageNet_200x1000_200x25_Seed_6", "major_val"),

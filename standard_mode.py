@@ -404,6 +404,7 @@ early_stopped = False
 early_stop_counter = 0
 patience = 30
 
+best_train_acc = 0
 best_val_acc = 0
 best_val_acc_major = 0
 best_val_acc_subset_major = 0
@@ -415,6 +416,7 @@ best_val_loss_dvs = 0
 best_epoch = 0
 best_checkpoint_path = ""
 
+last_train_acc = 0
 last_val_acc = 0
 last_val_acc_major = 0
 last_val_acc_subset_major = 0
@@ -472,6 +474,7 @@ for epoch in range(n_epoch):
     # 早停监控 minor acc_subset
     if eval_minor_dict["acc_subset"] >= best_val_acc_subset_minor:
         early_stop_counter = 0
+        best_train_acc = train_dict["acc"]
         best_val_acc = eval_dict["acc"]
         best_val_acc_major = eval_major_dict["acc"]
         best_val_acc_subset_major = eval_major_dict["acc_subset"]
@@ -491,6 +494,7 @@ for epoch in range(n_epoch):
         early_stop_counter += 1
         print(f"early_stop_counter: {early_stop_counter}\n")
 
+    last_train_acc = train_dict["acc"]
     last_val_acc = eval_dict["acc"]
     last_val_acc_major = eval_major_dict["acc"]
     last_val_acc_subset_major = eval_major_dict["acc_subset"]
@@ -542,6 +546,7 @@ log_elements = {
     "save_interval": save_interval,
     "checkpoint_dir": checkpoint_dir,
     "early_stopped": early_stopped,
+    "best_train_acc": best_train_acc,
     "best_val_acc": best_val_acc,
     "best_val_acc_major": best_val_acc_major,
     "best_val_acc_subset_major": best_val_acc_subset_major,
@@ -552,6 +557,7 @@ log_elements = {
     "best_val_loss_dvs": best_val_loss_dvs,
     "best_epoch": best_epoch,
     "best_checkpoint_path": best_checkpoint_path,
+    "last_train_acc": last_train_acc,
     "last_val_acc": last_val_acc,
     "last_val_acc_major": last_val_acc_major,
     "last_val_acc_subset_major": last_val_acc_subset_major,

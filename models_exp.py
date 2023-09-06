@@ -199,7 +199,7 @@ class ResNet18FcV2(nn.Module):
         return self.cq(x)
 
 
-PROVIDED_MODELS = OrderedDict(
+MODELS_EXP = OrderedDict(
     {
         "ResNet18AddFc": ResNet18AddFc,
         "BasicQuantResNet18V2": BasicQuantResNet18V2,

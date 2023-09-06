@@ -5,6 +5,7 @@ import time
 import argparse
 from tqdm import tqdm
 from pprint import pprint
+from collections import OrderedDict
 
 import numpy as np  # 在 import torch 前
 import torch
@@ -16,7 +17,8 @@ from torchvision.datasets import ImageFolder
 from torch.optim.lr_scheduler import LambdaLR, ReduceLROnPlateau
 
 from data_folders import PROVIDED_DATA_FOLDERS
-from models import PROVIDED_MODELS
+from models import MODELS
+from models_exp import MODELS_EXP
 from utils import save, load
 from utils import capped_lp_norm, orthogonality_l2_norm, PIController
 
@@ -68,6 +70,7 @@ use_data_folder = args.data_folder
 use_data_folder_info = PROVIDED_DATA_FOLDERS[use_data_folder]
 num_classes = use_data_folder_info["num_classes"]
 
+PROVIDED_MODELS = OrderedDict(**MODELS, **MODELS_EXP)
 use_model = args.model
 num_concepts = args.num_concepts
 num_attended_concepts = args.num_attended_concepts

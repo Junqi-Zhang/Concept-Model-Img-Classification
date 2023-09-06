@@ -400,7 +400,7 @@ class BasicQuantResNet50V4(nn.Module):
         return self.cq(x)
 
 
-PROVIDED_MODELS = OrderedDict(
+MODELS = OrderedDict(
     {
         "ResNet18": ResNet18,
         "ContrastiveResNet18": ContrastiveResNet18,

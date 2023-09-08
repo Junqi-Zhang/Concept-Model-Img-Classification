@@ -240,16 +240,26 @@ def compute_loss(returned_dict, targets, train=False):
     attention_weights = returned_dict.get("attention_weights", None)
     concept_similarity = returned_dict.get("concept_similarity", None)
 
+    def normalize_rows(input_tensor, epsilon=1e-10):
+        row_sums = torch.sum(input_tensor, dim=1, keepdim=True)
+        row_sums += epsilon  # 添加一个小的正数以避免除以0
+        normalized_tensor = input_tensor / row_sums
+    return normalized_tensor
+
+    loss_cls_per_img = criterion(outputs, targets)  # B * K
+    loss_img_per_cls = criterion(
+        outputs.t(), normalize_rows(F.one_hot(targets).t())
+    )  # K * B
+    loss_classification = (loss_cls_per_img + loss_img_per_cls) / 2.0
+
     if (attention_weights is None) and (concept_similarity is None):
-        loss_classification = criterion(outputs, targets)
         loss_sparsity = torch.tensor(0.0)
         loss_diversity = torch.tensor(0.0)
         loss = loss_classification + loss_sparsity_weight * \
             loss_sparsity + loss_diversity_weight * loss_diversity
-        return loss, loss_classification, loss_sparsity, loss_diversity
+        return loss, loss_cls_per_img, loss_img_per_cls, loss_sparsity, loss_diversity
 
-    loss_classification = criterion(outputs, targets)
-    loss_sparsity = capped_lp_norm(attention_weights)
+    loss_sparsity = capped_lp_norm(attention_weights, reduction="sum")
     loss_diversity = orthogonality_l2_norm(concept_similarity)
 
     def compute_s50(attention_weights):
@@ -264,7 +274,7 @@ def compute_loss(returned_dict, targets, train=False):
     loss = loss_classification + loss_sparsity_weight * \
         loss_sparsity + loss_diversity_weight * loss_diversity
 
-    return loss, loss_classification, loss_sparsity, loss_diversity
+    return loss, loss_cls_per_img, loss_img_per_cls, loss_sparsity, loss_diversity
 
 
 optimizer = optim.AdamW(
@@ -302,7 +312,8 @@ def run_epoch(desc, model, dataloader, classes_idx, train=False):
 
     metric_dict = {
         "loss": 0.0,
-        "loss_classification": 0.0,
+        "loss_cls_per_img": 0.0,
+        "loss_img_per_cls": 0.0,
         "loss_sparsity": 0.0,
         "loss_sparsity_weight": loss_sparsity_weight,
         "loss_diversity": 0.0,
@@ -329,7 +340,7 @@ def run_epoch(desc, model, dataloader, classes_idx, train=False):
             # forward pass
             if train:
                 returned_dict = model(data)
-                loss, loss_classification, loss_sparsity, loss_diversity = compute_loss(
+                loss, loss_cls_per_img, loss_img_per_cls, loss_sparsity, loss_diversity = compute_loss(
                     returned_dict, targets, train=True
                 )
 
@@ -340,7 +351,7 @@ def run_epoch(desc, model, dataloader, classes_idx, train=False):
             else:
                 with torch.no_grad():
                     returned_dict = model(data)
-                    loss, loss_classification, loss_sparsity, loss_diversity = compute_loss(
+                    loss, loss_cls_per_img, loss_img_per_cls, loss_sparsity, loss_diversity = compute_loss(
                         returned_dict, targets, train=False
                     )
 
@@ -368,8 +379,10 @@ def run_epoch(desc, model, dataloader, classes_idx, train=False):
 
             metric_dict["loss"] = (metric_dict["loss"] *
                                    step + loss.item()) / (step + 1)
-            metric_dict["loss_classification"] = (metric_dict["loss_classification"] *
-                                                  step + loss_classification.item()) / (step + 1)
+            metric_dict["loss_cls_per_img"] = (metric_dict["loss_cls_per_img"] *
+                                               step + loss_cls_per_img.item()) / (step + 1)
+            metric_dict["loss_img_per_cls"] = (metric_dict["loss_img_per_cls"] *
+                                               step + loss_img_per_cls.item()) / (step + 1)
             metric_dict["loss_sparsity"] = (metric_dict["loss_sparsity"] *
                                             step + loss_sparsity.item()) / (step + 1)
             metric_dict["loss_sparsity_weight"] = loss_sparsity_weight
@@ -387,7 +400,8 @@ def run_epoch(desc, model, dataloader, classes_idx, train=False):
             pbar.set_postfix(
                 **{
                     "loss": metric_dict["loss"],
-                    "loss_cls": metric_dict["loss_classification"],
+                    "loss_cpi": metric_dict["loss_cls_per_img"],
+                    "loss_ipc": metric_dict["loss_img_per_cls"],
                     "loss_sps": metric_dict["loss_sparsity"],
                     "loss_sps_w": metric_dict["loss_sparsity_weight"],
                     "loss_dvs": metric_dict["loss_diversity"],

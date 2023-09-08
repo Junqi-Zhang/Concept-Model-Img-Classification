@@ -29,7 +29,7 @@ seed_task_elements = {
     "loss_sparsity_weight": 0,
     "loss_sparsity_adaptive": False,
     "loss_diversity_weight": 0,
-    "supplementary_description": "Test BasicQuantResNet18V4NoSparse on Minor-200x25 Dataset",
+    "supplementary_description": "Test BasicQuantResNet18V4NoSparse with Complete Contrastive Loss on Minor-200x25 Dataset",
     "num_epochs": 1000,
     "batch_size": 125,
     # "batch_size": 75,

@@ -66,9 +66,10 @@ class PIController(object):
         self.kp = kp
         self.ki = ki
         self.target_metric = target_metric
-        self.cumulative_error = 0.0
-        self.weight = initial_weight
         self.forgetting_factor = forgetting_factor
+        self.initial_weight = initial_weight
+        self.weight = initial_weight
+        self.cumulative_error = 0.0
 
     def update(self, current_metric):
         error = current_metric - self.target_metric
@@ -77,7 +78,7 @@ class PIController(object):
         self.cumulative_error = self.forgetting_factor * self.cumulative_error + error
 
         change = self.kp * error + self.ki * self.cumulative_error
-        self.weight += change
+        self.weight = self.initial_weight + change
         self.weight = min(max(self.weight, 0.0), 0.2)
 
         return self.weight

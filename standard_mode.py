@@ -400,15 +400,15 @@ def run_epoch(desc, model, dataloader, classes_idx, train=False):
                                   step + n_selected_90) / (step + 1)
 
             pbar.set_postfix(
-                **{
+                {
+                    "acc": metric_dict["acc"],
+                    "acc_sub": metric_dict["acc_subset"],
                     "loss": metric_dict["loss"],
                     "loss_cpi": metric_dict["loss_cls_per_img"],
                     "loss_ipc": metric_dict["loss_img_per_cls"],
                     "loss_sps": metric_dict["loss_sparsity"],
                     "loss_sps_w": metric_dict["loss_sparsity_weight"],
                     "loss_dvs": metric_dict["loss_diversity"],
-                    "acc": metric_dict["acc"],
-                    "acc_sub": metric_dict["acc_subset"],
                     "s50": metric_dict["s50"],
                     "s90": metric_dict["s90"]
                 }

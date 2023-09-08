@@ -19,11 +19,15 @@ def load(model, model_path):
 # loss functions
 ###################################
 
-def capped_lp_norm(x, p=0.5, gamma=0.1, epsilon=1e-7):
+def capped_lp_norm(x, p=0.5, gamma=0.1, epsilon=1e-7, reduction="sum"):
     lp = torch.pow(torch.abs(x) + epsilon, p)
 
     loss = torch.min(lp, gamma ** p * torch.ones_like(x))
-    return loss.sum(dim=1).mean()
+    reducted_loss = {
+        "sum": loss.sum(dim=1).mean(),
+        "mean": loss.mean(dim=1).mean()
+    }
+    return reducted_loss[reduction]
 
 
 def entropy(x, epsilon=1e-7):

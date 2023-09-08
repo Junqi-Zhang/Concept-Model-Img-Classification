@@ -275,7 +275,7 @@ optimizer = optim.AdamW(
 # 创建 warmup 调度器
 def warmup_lambda(epoch):
     if epoch < warmup_epochs:
-        return 0.1 * (epoch + 1)
+        return 1 / warmup_epochs * (epoch + 1)
     else:
         return 1
 

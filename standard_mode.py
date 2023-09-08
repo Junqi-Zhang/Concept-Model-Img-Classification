@@ -244,7 +244,7 @@ def compute_loss(returned_dict, targets, train=False):
         row_sums = torch.sum(input_tensor, dim=1, keepdim=True)
         row_sums += epsilon  # 添加一个小的正数以避免除以0
         normalized_tensor = input_tensor / row_sums
-    return normalized_tensor
+        return normalized_tensor
 
     loss_cls_per_img = criterion(outputs, targets)  # B * K
     loss_img_per_cls = criterion(

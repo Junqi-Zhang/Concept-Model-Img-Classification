@@ -250,7 +250,7 @@ def compute_loss(returned_dict, targets, train=False):
 
     loss_cls_per_img = criterion(outputs, targets)  # B * K
     loss_img_per_cls = criterion(
-        outputs.t(), normalize_rows(F.one_hot(targets).t())
+        outputs.t(), normalize_rows(F.one_hot(targets, num_classes).t())
     )  # K * B
     loss_classification = (loss_cls_per_img + loss_img_per_cls) / 2.0
 

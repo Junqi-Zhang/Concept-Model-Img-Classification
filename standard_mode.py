@@ -45,6 +45,7 @@ parser.add_argument("--loss_diversity_weight", default=0.0, type=float)
 
 parser.add_argument("--num_epochs", default=100, type=int)
 parser.add_argument("--batch_size", default=256, type=int)
+parser.add_argument("--learning_rate", default=1e-3, type=float)
 
 parser.add_argument("--save_interval", default=1, type=int)
 
@@ -83,7 +84,7 @@ loss_diversity_weight = args.loss_diversity_weight
 
 n_epoch = args.num_epochs
 batch_size = args.batch_size
-learning_rate = 1e-3
+learning_rate = args.learning_rate
 weight_decay = 0.01
 warmup_epochs = 10
 

@@ -357,7 +357,7 @@ def run_epoch(desc, model, dataloader, classes_idx, train=False):
 
                 if returned_dict.get("attention_weights", None) is not None:
                     c = torch.sum(
-                        (returned_dict.get("attention_weights").data - 1e-3) > 0,
+                        (returned_dict.get("attention_weights").data - 1e-7) > 0,
                         dim=1
                     ).cpu().numpy()
                     n_selected_50 = np.percentile(c, 50)

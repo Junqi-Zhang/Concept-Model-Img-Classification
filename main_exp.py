@@ -31,7 +31,7 @@ seed_task_elements = {
     "loss_diversity_weight": 0,
     "supplementary_description": "Test BasicQuantResNet18V4NoSparse on Minor-200x25 Dataset",
     "num_epochs": 1000,
-    "batch_size": 100,
+    "batch_size": 125,
     # "batch_size": 75,
     "learning_rate": 1e-3,
     "save_interval": 1

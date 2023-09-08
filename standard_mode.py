@@ -242,6 +242,7 @@ def compute_loss(returned_dict, targets, train=False):
     concept_similarity = returned_dict.get("concept_similarity", None)
 
     def normalize_rows(input_tensor, epsilon=1e-10):
+        input_tensor = input_tensor.to(torch.float)
         row_sums = torch.sum(input_tensor, dim=1, keepdim=True)
         row_sums += epsilon  # 添加一个小的正数以避免除以0
         normalized_tensor = input_tensor / row_sums

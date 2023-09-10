@@ -34,6 +34,9 @@ parser = argparse.ArgumentParser(
 
 parser.add_argument("--data_folder", required=True)
 
+parser.add_argument("--warmup_model", default="")
+parser.add_argument("--warmup_checkpoint_path", default="", type=str)
+
 parser.add_argument("--model", required=True)
 parser.add_argument("--num_concepts", default=64, type=int)
 parser.add_argument("--num_attended_concepts", default=5, type=int)
@@ -51,7 +54,7 @@ parser.add_argument("--learning_rate", default=1e-3, type=float)
 parser.add_argument("--save_interval", default=1, type=int)
 
 # 以下参数以(arg.参数名)的方式进行调用
-parser.add_argument("--supplementary_description", default=None)
+parser.add_argument("--supplementary_description", default=None, type=str)
 parser.add_argument("--summary_log_path", required=True)
 parser.add_argument("--detailed_log_path", required=True)
 parser.add_argument("--gpu", type=int, required=True)
@@ -73,6 +76,14 @@ use_data_folder_info = PROVIDED_DATA_FOLDERS[use_data_folder]
 num_classes = use_data_folder_info["num_classes"]
 
 PROVIDED_MODELS = OrderedDict(**MODELS, **MODELS_EXP)
+warmup_model = args.warmup_model
+warmup_checkpoint_path = args.warmup_checkpoint_path
+if warmup_checkpoint_path == "":
+    warmup_checkpoint_epoch = None
+else:
+    warmup_checkpoint_epoch = eval(
+        os.path.basename(warmup_checkpoint_path).split("_")[1]
+    )
 use_model = args.model
 num_concepts = args.num_concepts
 num_attended_concepts = args.num_attended_concepts
@@ -93,7 +104,7 @@ save_interval = args.save_interval
 
 _time = time.strftime("%Y%m%d%H%M", time.localtime(time.time()))
 checkpoint_dir = os.path.join(
-    "./checkpoints/", use_data_folder, use_model, _time+f"_on_gpu_{args.gpu}")
+    "./checkpoints/", use_data_folder, warmup_model+use_model, _time+f"_on_gpu_{args.gpu}")
 if not os.path.exists(checkpoint_dir):
     os.makedirs(checkpoint_dir)
 
@@ -101,6 +112,7 @@ if not os.path.exists(checkpoint_dir):
 print("\n"+"#"*100)
 print(f"# Desc: {args.supplementary_description}")
 print(f"# Use data_folder: {use_data_folder}, {num_classes} classes in total.")
+print(f"# Warmup model: {warmup_model}, checkpoint: {warmup_checkpoint_path}.")
 print(f"# Use model: {use_model}, includes {num_concepts} concepts.")
 print(f"# Norm Concepts: {norm_concepts}, Norm Summary: {norm_summary}.")
 print(f"# Gradient Factor on Softmax: {grad_factor}.")
@@ -218,11 +230,40 @@ eval_minor_loader = DataLoader(
 # Model, loss and optimizer
 ##########################
 
-model = PROVIDED_MODELS[use_model](num_classes,
-                                   num_concepts,
-                                   norm_concepts,
-                                   norm_summary,
-                                   grad_factor).to(device)
+if warmup_model == "":
+    model = PROVIDED_MODELS[use_model](num_classes,
+                                       num_concepts,
+                                       norm_concepts,
+                                       norm_summary,
+                                       grad_factor).to(device)
+elif warmup_model == use_model:
+    model = PROVIDED_MODELS[use_model](num_classes,
+                                       num_concepts,
+                                       norm_concepts,
+                                       norm_summary,
+                                       grad_factor).to(device)
+    load(model, warmup_checkpoint_path)
+else:
+    pre_model = PROVIDED_MODELS[warmup_model](num_classes,
+                                              num_concepts,
+                                              norm_concepts,
+                                              norm_summary,
+                                              grad_factor).to(device)
+    load(pre_model, warmup_checkpoint_path)
+    model = PROVIDED_MODELS[use_model](num_classes,
+                                       num_concepts,
+                                       norm_concepts,
+                                       norm_summary,
+                                       grad_factor).to(device)
+    model.load_state_dict(
+        {
+            name: param
+            for name, param in pre_model.state_dict().items()
+            if name in model.state_dict()
+        },
+        strict=False
+    )
+
 criterion = nn.CrossEntropyLoss()
 sparsity_controller = PIController(
     kp=0.001, ki=0.00001,
@@ -549,6 +590,9 @@ log_elements = {
     "date": time.strftime("%Y%m%d", time.localtime(time.time())),
     "mode": "standard",
     "data_folder": use_data_folder,
+    "warmup_model": warmup_model,
+    "warmup_checkpoint_path": warmup_checkpoint_path,
+    "warmup_checkpoint_epoch": warmup_checkpoint_epoch,
     "model": use_model,
     "num_concepts": num_concepts,
     "num_attended_concepts": num_attended_concepts,

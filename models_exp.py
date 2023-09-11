@@ -447,7 +447,7 @@ class BasicConceptQuantizationV4SymNoisy(nn.Module):
         # train 和 eval 模式不同的前向传递结构
         if self.training:
             attention_weights_applied = attention_weights + \
-                (torch.rand_like(attention_weights) - 0.5) * 2 * self.alpha
+                torch.randn_like(attention_weights) * self.alpha
         else:
             attention_weights_applied = attention_weights
 
@@ -609,7 +609,8 @@ class BasicConceptQuantizationV4AsymNoisy(nn.Module):
         # train 和 eval 模式不同的前向传递结构
         if self.training:
             attention_weights_applied = attention_weights + \
-                torch.rand_like(attention_weights) * self.alpha
+                torch.randn_like(attention_weights) * \
+                self.alpha / 2 + self.alpha / 2
         else:
             attention_weights_applied = attention_weights
 

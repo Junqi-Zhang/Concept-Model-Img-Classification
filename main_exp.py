@@ -44,14 +44,14 @@ def generate_tasks(seed_task_elements, parallel, gpus):
 
     tasks = []
 
-    # gpu 0
-    new_task_element = seed_task_elements.copy()
-    new_task_element["model"] = "BasicQuantResNet18V4NoSparse"
-    tasks.append(new_task_element)
+    # # gpu 0
+    # new_task_element = seed_task_elements.copy()
+    # new_task_element["model"] = "BasicQuantResNet18V4NoSparse"
+    # tasks.append(new_task_element)
 
-    # gpu 1
-    new_task_element = seed_task_elements.copy()
-    tasks.append(new_task_element)
+    # # gpu 1
+    # new_task_element = seed_task_elements.copy()
+    # tasks.append(new_task_element)
 
     # gpu 2
     new_task_element = seed_task_elements.copy()
@@ -63,10 +63,10 @@ def generate_tasks(seed_task_elements, parallel, gpus):
     new_task_element["model"] = "BasicQuantResNet18V4AsymNoisy"
     tasks.append(new_task_element)
 
-    # gpu 4
-    new_task_element = seed_task_elements.copy()
-    new_task_element["model"] = "BasicQuantResNet18V4Smooth"
-    tasks.append(new_task_element)
+    # # gpu 4
+    # new_task_element = seed_task_elements.copy()
+    # new_task_element["model"] = "BasicQuantResNet18V4Smooth"
+    # tasks.append(new_task_element)
 
     # # gpu 5
     # new_task_element = seed_task_elements.copy()

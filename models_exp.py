@@ -777,11 +777,15 @@ class BasicConceptQuantizationV4Smooth(nn.Module):
             non_zero_mask = input_matrix > 0
             num_nonzero_per_row = non_zero_mask.sum(dim=1, keepdim=True)
             num_zero_per_row = num_classes - num_nonzero_per_row
-            smoothing_value_for_zeros = smoothing / num_zero_per_row
-            smoothing_value_for_non_zeros = smoothing / num_nonzero_per_row
+            smoothing_value_for_zeros = (
+                smoothing / num_zero_per_row
+            ).expand_as(input_matrix)
+            smoothing_value_for_non_zeros = (
+                smoothing / num_nonzero_per_row
+            ).expand_as(input_matrix)
             smoothed_matrix = input_matrix.clone()
-            smoothed_matrix[non_zero_mask] -= smoothing_value_for_non_zeros
-            smoothed_matrix[~non_zero_mask] += smoothing_value_for_zeros
+            smoothed_matrix[non_zero_mask] -= smoothing_value_for_non_zeros[non_zero_mask]
+            smoothed_matrix[~non_zero_mask] += smoothing_value_for_zeros[~non_zero_mask]
             return smoothed_matrix
 
         # train 和 eval 模式不同的前向传递结构

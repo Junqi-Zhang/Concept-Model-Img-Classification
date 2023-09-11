@@ -31,14 +31,14 @@ if torch.cuda.is_available():
 else:
     device = "cpu"
 
-use_data_folder = "Sampled_ImageNet_200x1000_50x100_Seed_6"
-# use_data_folder = "Sampled_ImageNet"
+use_data_folder = "Sampled_ImageNet_200x1000_200x25_Seed_6"  # # 'n02391049' 134
+# use_data_folder = "Sampled_ImageNet"  # # 'n02391049' 83
 use_data_folder_info = PROVIDED_DATA_FOLDERS[use_data_folder]
 num_classes = use_data_folder_info["num_classes"]
 
 PROVIDED_MODELS = OrderedDict(**MODELS, **MODELS_EXP)
-use_model = "BasicQuantResNet18V4"
-num_concepts = 50
+use_model = "BasicQuantResNet18V4NoSparse"
+num_concepts = 250
 num_attended_concepts = 5
 norm_concepts = True
 norm_summary = True
@@ -49,8 +49,8 @@ loss_diversity_weight = 1.0
 
 batch_size = 125
 
-load_checkpoint_path = "./checkpoints/Sampled_ImageNet_200x1000_50x100_Seed_6/BasicQuantResNet18V4/202309031117_on_gpu_0/best_epoch_178_0.9831_0.6207_0.7026_0.7062_0.2932_0.6136_5.0_9.2_6.2_10.1.pt"
-checkpoint_desc = "50概念中位数5"
+load_checkpoint_path = "./checkpoints/Sampled_ImageNet_200x1000_200x25_Seed_6/BasicQuantResNet18V4NoSparse/202309102206_on_gpu_7/best_epoch_34_0.8877_0.4262_0.7165_0.7189_0.1354_0.4568_250.0_250.0_250.0_250.0_0.0.pt"
+checkpoint_desc = "250概念有正交约束"
 
 ##########################
 # Dataset and DataLoader
@@ -347,7 +347,7 @@ for label, attention in zip(analyze_label, analyze_attention):
         label_concept_count_dict[label] = np.zeros_like(
             attention, dtype=int
         )
-    indices = np.where(attention > 0.0)
+    indices = np.where(attention > 0.05)
     label_concept_count_dict[label][indices] += 1
 
 label_concept_dict = dict()

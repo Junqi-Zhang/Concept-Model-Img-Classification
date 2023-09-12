@@ -24,10 +24,24 @@ def capped_lp_norm(x, p=0.5, gamma=0.1, epsilon=1e-7, reduction="sum"):
 
     loss = torch.min(lp, gamma ** p * torch.ones_like(x))
     reducted_loss = {
-        "sum": loss.sum(dim=1).mean(),
-        "mean": loss.mean(dim=1).mean()
+        "sum": loss.sum(dim=1),
+        "mean": loss.mean(dim=1)
     }
-    return reducted_loss[reduction]
+    return reducted_loss[reduction].mean()
+
+
+def capped_lp_norm_hinge(x, p=0.5, gamma=0.1, epsilon=1e-7, threshold=1e-7, target=30, reduction="sum"):
+    with torch.no_grad():
+        switch = (torch.sum(x > threshold, dim=1) > target).type(x.dtype)
+
+    lp = torch.pow(torch.abs(x) + epsilon, p)
+
+    loss = torch.min(lp, gamma ** p * torch.ones_like(x))
+    reducted_loss = {
+        "sum": loss.sum(dim=1),
+        "mean": loss.mean(dim=1)
+    }
+    return (switch * reducted_loss[reduction]).mean()
 
 
 def entropy(x, epsilon=1e-7):

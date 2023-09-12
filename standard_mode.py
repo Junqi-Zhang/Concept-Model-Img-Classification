@@ -21,7 +21,7 @@ from data_folders import PROVIDED_DATA_FOLDERS
 from models import MODELS
 from models_exp import MODELS_EXP
 from utils import save, load
-from utils import capped_lp_norm, orthogonality_l2_norm, PIController
+from utils import capped_lp_norm, capped_lp_norm_hinge, orthogonality_l2_norm, PIController
 
 
 ##########################
@@ -302,7 +302,12 @@ def compute_loss(returned_dict, targets, train=False):
             loss_sparsity + loss_diversity_weight * loss_diversity
         return loss, loss_cls_per_img, loss_img_per_cls, loss_sparsity, loss_diversity
 
-    loss_sparsity = capped_lp_norm(attention_weights, reduction="sum")
+    # loss_sparsity = capped_lp_norm(attention_weights, reduction="sum")
+    loss_sparsity = capped_lp_norm_hinge(
+        attention_weights,
+        gamma=1.0/num_attended_concepts,
+        target=num_attended_concepts,
+        reduction="sum")
     loss_diversity = orthogonality_l2_norm(concept_similarity)
 
     def compute_s50(attention_weights):
@@ -327,8 +332,11 @@ optimizer = optim.AdamW(
 
 # 创建 warmup 调度器
 def warmup_lambda(epoch):
-    if epoch < warmup_epochs:
-        return 1 / warmup_epochs * (epoch + 1)
+    half_epochs = warmup_epochs // 2
+    if epoch < half_epochs:
+        return 1 / half_epochs
+    elif epoch < warmup_epochs:
+        return 1 / half_epochs * (epoch - half_epochs + 1)
     else:
         return 1
 
@@ -338,7 +346,7 @@ warmup_scheduler = LambdaLR(
 )
 
 plateau_scheduler = ReduceLROnPlateau(
-    optimizer, mode="max", factor=0.5, patience=5, verbose=True
+    optimizer, mode="max", factor=0.5, patience=3, verbose=True
 )
 
 ##########################

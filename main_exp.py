@@ -56,14 +56,14 @@ def generate_tasks(seed_task_elements, parallel, gpus):
     # gpu 2
     new_task_element = seed_task_elements.copy()
     new_task_element["warmup_model"] = "BasicQuantResNet18V4"
-    new_task_element["warmup_checkpoint_path"] = "checkpoints/Sampled_ImageNet_200x1000_200x25_Seed_6/BasicQuantResNet18V4/202309111916_on_gpu_6/best_epoch_35_0.8702_0.4079_0.7085_0.7113_0.1074_0.4272_44.5_90.8_51.3_95.7_0.0.pt"
+    new_task_element["warmup_checkpoint_path"] = "checkpoints/Sampled_ImageNet_200x1000_200x25_Seed_6/BasicQuantResNet18V4/202309111916_on_gpu_6/epoch_35_0.8702_0.4079_0.7085_0.7113_0.1074_0.4272_44.5_90.8_51.3_95.7_0.0.pt"
     tasks.append(new_task_element)
 
     # gpu 3
     new_task_element = seed_task_elements.copy()
     new_task_element["num_attended_concepts"] = 10
     new_task_element["warmup_model"] = "BasicQuantResNet18V4"
-    new_task_element["warmup_checkpoint_path"] = "checkpoints/Sampled_ImageNet_200x1000_200x25_Seed_6/BasicQuantResNet18V4/202309111916_on_gpu_6/best_epoch_35_0.8702_0.4079_0.7085_0.7113_0.1074_0.4272_44.5_90.8_51.3_95.7_0.0.pt"
+    new_task_element["warmup_checkpoint_path"] = "checkpoints/Sampled_ImageNet_200x1000_200x25_Seed_6/BasicQuantResNet18V4/202309111916_on_gpu_6/epoch_35_0.8702_0.4079_0.7085_0.7113_0.1074_0.4272_44.5_90.8_51.3_95.7_0.0.pt"
     tasks.append(new_task_element)
 
     # gpu 4
@@ -81,7 +81,7 @@ def generate_tasks(seed_task_elements, parallel, gpus):
     new_task_element = seed_task_elements.copy()
     new_task_element["model"] = "BasicQuantResNet18V4Smooth"
     new_task_element["warmup_model"] = "BasicQuantResNet18V4Smooth"
-    new_task_element["warmup_checkpoint_path"] = "checkpoints/Sampled_ImageNet_200x1000_200x25_Seed_6/BasicQuantResNet18V4Smooth/202309111916_on_gpu_9/best_epoch_38_0.8721_0.4077_0.7007_0.7036_0.1140_0.4274_65.6_100.6_70.3_98.2_0.0.pt"
+    new_task_element["warmup_checkpoint_path"] = "checkpoints/Sampled_ImageNet_200x1000_200x25_Seed_6/BasicQuantResNet18V4Smooth/202309111916_on_gpu_9/epoch_38_0.8721_0.4077_0.7007_0.7036_0.1140_0.4274_65.6_100.6_70.3_98.2_0.0.pt"
     tasks.append(new_task_element)
 
     # gpu 7
@@ -89,7 +89,7 @@ def generate_tasks(seed_task_elements, parallel, gpus):
     new_task_element["model"] = "BasicQuantResNet18V4Smooth"
     new_task_element["num_attended_concepts"] = 10
     new_task_element["warmup_model"] = "BasicQuantResNet18V4Smooth"
-    new_task_element["warmup_checkpoint_path"] = "checkpoints/Sampled_ImageNet_200x1000_200x25_Seed_6/BasicQuantResNet18V4Smooth/202309111916_on_gpu_9/best_epoch_38_0.8721_0.4077_0.7007_0.7036_0.1140_0.4274_65.6_100.6_70.3_98.2_0.0.pt"
+    new_task_element["warmup_checkpoint_path"] = "checkpoints/Sampled_ImageNet_200x1000_200x25_Seed_6/BasicQuantResNet18V4Smooth/202309111916_on_gpu_9/epoch_38_0.8721_0.4077_0.7007_0.7036_0.1140_0.4274_65.6_100.6_70.3_98.2_0.0.pt"
     tasks.append(new_task_element)
 
     # gpu 8

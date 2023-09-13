@@ -356,7 +356,7 @@ class ContrastiveResNet18(nn.Module):
 
 
 class BasicQuantResNet18V4(nn.Module):
-    def __init__(self, num_classes, num_concepts, norm_concepts=True, grad_factor=1, *args, **kwargs):
+    def __init__(self, num_classes, num_concepts, norm_concepts, grad_factor, *args, **kwargs):
         super(BasicQuantResNet18V4, self).__init__()
 
         img_classifier = resnet18(weights=None, num_classes=num_classes)
@@ -561,7 +561,7 @@ class BasicQuantResNet18V4Smooth(nn.Module):
 
 
 class BasicQuantResNet50V4(nn.Module):
-    def __init__(self, num_classes, num_concepts, norm_concepts=True, grad_factor=1, *args, **kwargs):
+    def __init__(self, num_classes, num_concepts, norm_concepts, grad_factor, *args, **kwargs):
         super(BasicQuantResNet50V4, self).__init__()
 
         img_classifier = resnet50(weights=None, num_classes=num_classes)

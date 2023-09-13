@@ -333,7 +333,7 @@ class BasicConceptQuantizationV4NoSparse(nn.Module):
 
 
 class BasicQuantResNet18V4NoSparse(nn.Module):
-    def __init__(self, num_classes, num_concepts, norm_concepts=True, grad_factor=1, *args, **kwargs):
+    def __init__(self, num_classes, num_concepts, norm_concepts, grad_factor, *args, **kwargs):
         super(BasicQuantResNet18V4NoSparse, self).__init__()
 
         img_classifier = resnet18(weights=None, num_classes=num_classes)
@@ -495,7 +495,7 @@ class BasicConceptQuantizationV4SymNoisy(nn.Module):
 
 
 class BasicQuantResNet18V4SymNoisy(nn.Module):
-    def __init__(self, num_classes, num_concepts, norm_concepts=True, grad_factor=1, *args, **kwargs):
+    def __init__(self, num_classes, num_concepts, norm_concepts, grad_factor, *args, **kwargs):
         super(BasicQuantResNet18V4SymNoisy, self).__init__()
 
         img_classifier = resnet18(weights=None, num_classes=num_classes)
@@ -658,7 +658,7 @@ class BasicConceptQuantizationV4AsymNoisy(nn.Module):
 
 
 class BasicQuantResNet18V4AsymNoisy(nn.Module):
-    def __init__(self, num_classes, num_concepts, norm_concepts=True, grad_factor=1, *args, **kwargs):
+    def __init__(self, num_classes, num_concepts, norm_concepts, grad_factor, *args, **kwargs):
         super(BasicQuantResNet18V4AsymNoisy, self).__init__()
 
         img_classifier = resnet18(weights=None, num_classes=num_classes)

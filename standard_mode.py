@@ -43,6 +43,7 @@ parser.add_argument("--num_attended_concepts", default=5, type=int)
 parser.add_argument("--norm_concepts", default="False")
 parser.add_argument("--norm_summary", default="False")
 parser.add_argument("--grad_factor", default=1.0, type=float)
+parser.add_argument("--att_smoothing", default=0.0, type=float)
 parser.add_argument("--loss_sparsity_weight", default=0.0, type=float)
 parser.add_argument("--loss_sparsity_adaptive", default="False")
 parser.add_argument("--loss_diversity_weight", default=0.0, type=float)
@@ -90,6 +91,7 @@ num_attended_concepts = args.num_attended_concepts
 norm_concepts = eval(args.norm_concepts)
 norm_summary = eval(args.norm_summary)
 grad_factor = args.grad_factor
+att_smoothing = args.att_smoothing
 loss_sparsity_weight = args.loss_sparsity_weight
 loss_sparsity_adaptive = eval(args.loss_sparsity_adaptive)
 loss_diversity_weight = args.loss_diversity_weight
@@ -116,6 +118,7 @@ print(f"# Warmup model: {warmup_model}, checkpoint: {warmup_checkpoint_path}.")
 print(f"# Use model: {use_model}, includes {num_concepts} concepts.")
 print(f"# Norm Concepts: {norm_concepts}, Norm Summary: {norm_summary}.")
 print(f"# Gradient Factor on Softmax: {grad_factor}.")
+print(f"# Smooth attention weights with smoothing={att_smoothing}.")
 print(
     f"# Weight for concept  sparsity loss is {loss_sparsity_weight:.4f}, "
     f"adaptive: {loss_sparsity_adaptive}, target: {num_attended_concepts}."
@@ -230,31 +233,26 @@ eval_minor_loader = DataLoader(
 # Model, loss and optimizer
 ##########################
 
+model_parameters = dict(
+    {
+        "num_classes": num_classes,
+        "num_concepts": num_concepts,
+        "norm_concepts": norm_concepts,
+        "norm_summary": norm_summary,
+        "grad_factor": grad_factor,
+        "smoothing": att_smoothing
+    }
+)
+
 if warmup_model == "":
-    model = PROVIDED_MODELS[use_model](num_classes,
-                                       num_concepts,
-                                       norm_concepts,
-                                       norm_summary,
-                                       grad_factor).to(device)
+    model = PROVIDED_MODELS[use_model](**model_parameters).to(device)
 elif warmup_model == use_model:
-    model = PROVIDED_MODELS[use_model](num_classes,
-                                       num_concepts,
-                                       norm_concepts,
-                                       norm_summary,
-                                       grad_factor).to(device)
+    model = PROVIDED_MODELS[use_model](**model_parameters).to(device)
     load(model, warmup_checkpoint_path)
 else:
-    pre_model = PROVIDED_MODELS[warmup_model](num_classes,
-                                              num_concepts,
-                                              norm_concepts,
-                                              norm_summary,
-                                              grad_factor).to(device)
+    pre_model = PROVIDED_MODELS[warmup_model](**model_parameters).to(device)
     load(pre_model, warmup_checkpoint_path)
-    model = PROVIDED_MODELS[use_model](num_classes,
-                                       num_concepts,
-                                       norm_concepts,
-                                       norm_summary,
-                                       grad_factor).to(device)
+    model = PROVIDED_MODELS[use_model](**model_parameters).to(device)
     model.load_state_dict(
         {
             name: param
@@ -607,6 +605,7 @@ log_elements = {
     "norm_concepts": norm_concepts,
     "norm_summary": norm_summary,
     "grad_factor": grad_factor,
+    "att_smoothing": att_smoothing,
     "loss_sparsity_weight": loss_sparsity_weight,
     "loss_sparsity_adaptive": loss_sparsity_adaptive,
     "loss_diversity_weight": loss_diversity_weight,

@@ -21,17 +21,18 @@ seed_task_elements = {
     "data_folder": "Sampled_ImageNet_200x1000_200x25_Seed_6",
     # "warmup_model": "",
     # "warmup_checkpoint_path": "",
-    "model": "BasicQuantResNet18V4",
+    "model": "BasicQuantResNet18V4Smooth",
     # "model": "ResNet18",
     "num_concepts": 250,
     "num_attended_concepts": 10,
     "norm_concepts": True,
     "norm_summary": True,
     "grad_factor": 1,
+    "att_smoothing": 0.3,
     "loss_sparsity_weight": 0,
     "loss_sparsity_adaptive": False,
     "loss_diversity_weight": 1.0,
-    "supplementary_description": "Test V4 and V4Smooth on Minor-200x25 Dataset",
+    "supplementary_description": "Test V4Smooth on Minor-200x25 Dataset",
     "num_epochs": 1000,
     "batch_size": 125,
     # "batch_size": 75,
@@ -55,12 +56,13 @@ def generate_tasks(seed_task_elements, parallel, gpus):
 
     # task 3
     new_task_element = seed_task_elements.copy()
-    new_task_element["num_concepts"] = 1000
+    new_task_element["att_smoothing"] = 0.4
     tasks.append(new_task_element)
 
     # task 4
     new_task_element = seed_task_elements.copy()
-    new_task_element["num_concepts"] = 50
+    new_task_element["att_smoothing"] = 0.4
+    new_task_element["num_concepts"] = 500
     tasks.append(new_task_element)
 
     if parallel:

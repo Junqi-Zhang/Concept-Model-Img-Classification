@@ -14,21 +14,22 @@ select_df = summary_df[
         ["BasicQuantResNet18V4", "BasicQuantResNet18V4Smooth"]
     )
 ][
-    ['model', 'num_concepts', 'num_attended_concepts', 'norm_concepts',
+    ['model', 'num_concepts', 'num_attended_concepts', 'norm_concepts', 'att_smoothing',
      'loss_sparsity_weight', 'loss_sparsity_adaptive', 'loss_diversity_weight',
      'best_epoch', 'best_train_acc', 'best_val_acc', 'best_val_acc_major', 'best_val_acc_subset_major',
      'best_val_acc_minor', 'best_val_acc_subset_minor', 'best_val_s50', 'best_val_s90', 'best_val_loss_dvs',
      'checkpoint_dir', 'detailed_log_path']
 ]
 
+select_df["att_smoothing"][select_df["att_smoothing"].isnull()] = 0.2
 
 grouped_df = select_df[
-    ['model', 'num_concepts', 'num_attended_concepts', 'norm_concepts', 'loss_sparsity_weight', 'loss_diversity_weight',
+    ['model', 'num_concepts', 'num_attended_concepts', 'norm_concepts', 'att_smoothing',
+     'loss_sparsity_weight', 'loss_diversity_weight',
      'best_epoch', 'best_train_acc', 'best_val_acc', 'best_val_acc_major', 'best_val_acc_subset_major',
      'best_val_acc_minor', 'best_val_acc_subset_minor', 'best_val_s50', 'best_val_s90', 'best_val_loss_dvs']
 ].groupby(
-    ['loss_sparsity_weight', 'model', 'num_concepts',
-        'num_attended_concepts', 'norm_concepts', 'loss_diversity_weight']
+    ['model', 'num_concepts', 'att_smoothing', 'loss_sparsity_weight', 'num_attended_concepts', 'norm_concepts', 'loss_diversity_weight']
 )
 
 pd.concat(

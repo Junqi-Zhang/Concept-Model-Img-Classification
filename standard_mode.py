@@ -469,7 +469,7 @@ def run_epoch(desc, model, dataloader, classes_idx, train=False):
 
 early_stopped = False
 early_stop_counter = 0
-patience = 20
+patience = 12
 
 best_train_acc = 0
 best_val_acc = 0
@@ -477,7 +477,9 @@ best_val_acc_major = 0
 best_val_acc_subset_major = 0
 best_val_acc_minor = 0
 best_val_acc_subset_minor = 0
+best_train_s50 = -1
 best_val_s50 = -1
+best_train_s90 = -1
 best_val_s90 = -1
 best_val_loss_dvs = 0
 best_epoch = 0
@@ -489,7 +491,9 @@ last_val_acc_major = 0
 last_val_acc_subset_major = 0
 last_val_acc_minor = 0
 last_val_acc_subset_minor = 0
+last_train_s50 = -1
 last_val_s50 = -1
+last_train_s90 = -1
 last_val_s90 = -1
 last_val_loss_dvs = 0
 last_epoch = 0
@@ -547,7 +551,9 @@ for epoch in range(n_epoch):
         best_val_acc_subset_major = eval_major_dict["acc_subset"]
         best_val_acc_minor = eval_minor_dict["acc"]
         best_val_acc_subset_minor = eval_minor_dict["acc_subset"]
+        best_train_s50 = train_dict["s50"]
         best_val_s50 = eval_dict["s50"]
+        best_train_s90 = train_dict["s90"]
         best_val_s90 = eval_dict["s90"]
         best_val_loss_dvs = train_dict["loss_diversity"]
         best_epoch = epoch + 1
@@ -567,7 +573,9 @@ for epoch in range(n_epoch):
     last_val_acc_subset_major = eval_major_dict["acc_subset"]
     last_val_acc_minor = eval_minor_dict["acc"]
     last_val_acc_subset_minor = eval_minor_dict["acc_subset"]
+    last_train_s50 = train_dict["s50"]
     last_val_s50 = eval_dict["s50"]
+    last_train_s90 = train_dict["s90"]
     last_val_s90 = eval_dict["s90"]
     last_val_loss_dvs = train_dict["loss_diversity"]
     last_epoch = epoch + 1
@@ -623,7 +631,9 @@ log_elements = {
     "best_val_acc_subset_major": best_val_acc_subset_major,
     "best_val_acc_minor": best_val_acc_minor,
     "best_val_acc_subset_minor": best_val_acc_subset_minor,
+    "best_train_s50": best_train_s50,
     "best_val_s50": best_val_s50,
+    "best_train_s90": best_train_s90,
     "best_val_s90": best_val_s90,
     "best_val_loss_dvs": best_val_loss_dvs,
     "best_epoch": best_epoch,
@@ -634,7 +644,9 @@ log_elements = {
     "last_val_acc_subset_major": last_val_acc_subset_major,
     "last_val_acc_minor": last_val_acc_minor,
     "last_val_acc_subset_minor": last_val_acc_subset_minor,
+    "last_train_s50": last_train_s50,
     "last_val_s50": last_val_s50,
+    "last_train_s90": last_train_s90,
     "last_val_s90": last_val_s90,
     "last_val_loss_dvs": last_val_loss_dvs,
     "last_epoch": last_epoch,

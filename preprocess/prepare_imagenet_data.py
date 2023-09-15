@@ -4,7 +4,6 @@ import random
 from tqdm import tqdm
 from imagenet_classes import IMAGENET2012_CLASSES
 
-
 RANDOM_SEED = 6
 random.seed(RANDOM_SEED)
 
@@ -21,14 +20,13 @@ SAMPLED_IMAGENET_DATA_FOLDER = (
     f"Seed_{RANDOM_SEED}/"
 )
 
-########## 清空采样结果文件夹 Start ##########
+########## Clear the sample result folder Start ##########
 if os.path.exists(SAMPLED_IMAGENET_DATA_FOLDER):
     shutil.rmtree(SAMPLED_IMAGENET_DATA_FOLDER)
 os.makedirs(SAMPLED_IMAGENET_DATA_FOLDER)
-########## 清空采样结果文件夹 Finish ##########
+########## Clear the sample result folder Finish ##########
 
-
-########## 类别采样 Start ##########
+########## Class sampling Start ##########
 class_codes = list(IMAGENET2012_CLASSES.keys())
 assert len(class_codes) == 1000
 
@@ -37,10 +35,9 @@ sampled_class_codes = random.sample(
 )
 sampled_major_class_codes = sampled_class_codes[:SAMPLED_MAJOR_CLASS_NUM]
 sampled_minor_class_codes = sampled_class_codes[-SAMPLED_MINOR_CLASS_NUM:]
-########## 类别采样 Finish ##########
+########## Class sampling Finish ##########
 
-
-########## 类别采样正确性检查 Start ##########
+########## Class sampling correctness check Start ##########
 for i, code in enumerate(sampled_major_class_codes):
     assert sampled_class_codes[i] == code
 
@@ -52,29 +49,29 @@ for code in sampled_minor_class_codes:
 
 for code in sampled_major_class_codes:
     assert code not in sampled_minor_class_codes
-########## 类别采样正确性检查 Finish ##########
+########## Class sampling correctness check Finish ##########
 
-
-########## train data 采样 Start ##########
+########## Train data sampling Start ##########
 
 sampled_train_img_num = 0
 
-# 设定每个类别的采样数量
+# Set the number of samples for each category
 sample_num_per_class = dict()
 for code in sampled_major_class_codes:
     sample_num_per_class[code] = MAJOR_CLASS_IMG_MAX_COUNT
 for code in sampled_minor_class_codes:
     sample_num_per_class[code] = MINOR_CLASS_IMG_MAX_COUNT
 
-# 创建每个类别的文件夹
+# Create a folder for each category
 for code in sampled_class_codes:
     os.makedirs(os.path.join(SAMPLED_IMAGENET_DATA_FOLDER, "train", code))
 
-# 采样 train data
+# Sample train data
 all_train_img_file_names = os.listdir(
     os.path.join(IMAGENET_DATA_FOLDER, "train")
 )
-random.shuffle(all_train_img_file_names)  # shuffle 全部训练图片的顺序
+# Shuffle the order of all training images
+random.shuffle(all_train_img_file_names)
 
 # all_train_img_file_names = all_train_img_file_names[:1000] # For Debug
 
@@ -98,16 +95,15 @@ for i, file_name in tqdm(enumerate(all_train_img_file_names), total=len(all_trai
         break
 
 print(f"Finish Sampling {sampled_train_img_num} train images in total.")
-########## train data 采样 Finish ##########
+########## Train data sampling Finish ##########
 
-
-########## val data 按类抽取 Start ##########
-# 抽取三个 validation set
+########## Extract val data by class Start ##########
+# Extract three validation sets
 sampled_val_img_num = 0
 sampled_major_val_img_num = 0
 sampled_minor_val_img_num = 0
 
-# 创建每个类别的文件夹
+# Create a folder for each category
 for code in sampled_class_codes:
     os.makedirs(os.path.join(SAMPLED_IMAGENET_DATA_FOLDER, "val", code))
 for code in sampled_major_class_codes:
@@ -115,7 +111,7 @@ for code in sampled_major_class_codes:
 for code in sampled_minor_class_codes:
     os.makedirs(os.path.join(SAMPLED_IMAGENET_DATA_FOLDER, "minor_val", code))
 
-# 按类抽取 val data
+# Extract val data by class
 all_val_img_file_names = os.listdir(os.path.join(IMAGENET_DATA_FOLDER, "val"))
 
 for i, file_name in tqdm(enumerate(all_val_img_file_names), total=len(all_val_img_file_names)):
@@ -148,4 +144,4 @@ for i, file_name in tqdm(enumerate(all_val_img_file_names), total=len(all_val_im
 print(f"Finish Sampling {sampled_val_img_num} val images in total,")
 print(f"in which {sampled_major_val_img_num} are in major classes,")
 print(f"and {sampled_minor_val_img_num} are in minor classes.")
-########## val data 按类抽取 Finish ##########
+########## Extract val data by class Finish ##########

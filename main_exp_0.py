@@ -32,7 +32,7 @@ seed_task_elements = {
     "loss_sparsity_weight": 0,
     "loss_sparsity_adaptive": False,
     "loss_diversity_weight": 0,
-    "supplementary_description": "Test V4Smooth on Minor-200x25 Dataset",
+    "supplementary_description": "Check Rebuilt Code",
     "num_epochs": 1000,
     "batch_size": 125,
     # "batch_size": 75,
@@ -49,21 +49,21 @@ def generate_tasks(seed_task_elements, parallel, gpus):
     new_task_element = seed_task_elements.copy()
     tasks.append(new_task_element)
 
-    # task 2
-    new_task_element = seed_task_elements.copy()
-    new_task_element["num_concepts"] = 500
-    tasks.append(new_task_element)
+    # # task 2
+    # new_task_element = seed_task_elements.copy()
+    # new_task_element["num_concepts"] = 500
+    # tasks.append(new_task_element)
 
-    # task 3
-    new_task_element = seed_task_elements.copy()
-    new_task_element["att_smoothing"] = 0.4
-    tasks.append(new_task_element)
+    # # task 3
+    # new_task_element = seed_task_elements.copy()
+    # new_task_element["att_smoothing"] = 0.4
+    # tasks.append(new_task_element)
 
-    # task 4
-    new_task_element = seed_task_elements.copy()
-    new_task_element["att_smoothing"] = 0.4
-    new_task_element["num_concepts"] = 500
-    tasks.append(new_task_element)
+    # # task 4
+    # new_task_element = seed_task_elements.copy()
+    # new_task_element["att_smoothing"] = 0.4
+    # new_task_element["num_concepts"] = 500
+    # tasks.append(new_task_element)
 
     if parallel:
         num_gpus = len(gpus)

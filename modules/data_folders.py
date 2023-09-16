@@ -78,6 +78,11 @@ SAMPLED_IMAGENET_200X1000_200X25_SEED_6 = create_dataset_dict(
     base_folder="Sampled_ImageNet_200x1000_200x25_Seed_6",
     splits=["train", "val", "major_val", "minor_val"]
 )
+SAMPLED_IMAGENET_500X1000_500X5_SEED_6 = create_dataset_dict(
+    num_classes=1000,
+    base_folder="Sampled_ImageNet_500x1000_500x5_Seed_6",
+    splits=["train", "val", "major_val", "minor_val"]
+)
 
 # Create an ordered dictionary of provided datasets
 PROVIDED_DATASETS = OrderedDict(
@@ -87,5 +92,6 @@ PROVIDED_DATASETS = OrderedDict(
         "Sampled_ImageNet": SAMPLED_IMAGENET,
         "Sampled_ImageNet_200x1000_50x100_Seed_6": SAMPLED_IMAGENET_200X1000_50X100_SEED_6,
         "Sampled_ImageNet_200x1000_200x25_Seed_6": SAMPLED_IMAGENET_200X1000_200X25_SEED_6,
+        "Sampled_ImageNet_500x1000_500x5_Seed_6": SAMPLED_IMAGENET_500X1000_500X5_SEED_6,
     }
 )

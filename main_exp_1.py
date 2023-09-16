@@ -19,7 +19,7 @@ seed_task_elements = {
     # "warmup_model": "",
     # "warmup_checkpoint_path": "",
     "use_model": "BasicQuantResNet18V4",
-    "num_concepts": 250,
+    "num_concepts": 500,
     "num_attended_concepts": 50,
     "norm_concepts": False,
     "norm_summary": True,

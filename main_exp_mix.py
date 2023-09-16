@@ -14,25 +14,23 @@ parser.add_argument("--gpus", default=[0], type=int, nargs="*")
 
 
 seed_task_elements = {
-    # "mode": "overfit",
-    # "data_folder": "Sampled_ImageNet_Val",
     "mode": "standard",
-    # "data_folder": "Sampled_ImageNet",
-    "data_folder": "Sampled_ImageNet_200x1000_200x25_Seed_6",
+    "dataset_name": "Sampled_ImageNet_200x1000_200x25_Seed_6",
     # "warmup_model": "",
     # "warmup_checkpoint_path": "",
-    "model": "BasicQuantResNet18V4",
-    # "model": "ResNet18",
+    "use_model": "BasicQuantResNet18V4",
     "num_concepts": 250,
     "num_attended_concepts": 50,
     "norm_concepts": False,
     "norm_summary": True,
     "grad_factor": 1,
-    "loss_sparsity_weight": 0.02,
+    "att_smoothing": 0.0,
+    "loss_sparsity_weight": 0.0,
     "loss_sparsity_adaptive": False,
-    "loss_diversity_weight": 1,
-    "supplementary_description": "Test V4Smooth with dvs_sps-reg on Minor-200x25 Dataset",
+    "loss_diversity_weight": 1.0,
+    "supplementary_description": "Check Rebuilt Code",
     "num_epochs": 1000,
+    "warmup_epochs": 10,
     "batch_size": 125,
     # "batch_size": 75,
     "learning_rate": 5e-4,
@@ -46,59 +44,51 @@ def generate_tasks(seed_task_elements, parallel, gpus):
 
     # gpu 0
     new_task_element = seed_task_elements.copy()
+    new_task_element["num_concepts"] = 50
     tasks.append(new_task_element)
 
     # gpu 1
     new_task_element = seed_task_elements.copy()
-    new_task_element["num_attended_concepts"] = 30
+    new_task_element["num_concepts"] = 250
     tasks.append(new_task_element)
 
     # gpu 2
     new_task_element = seed_task_elements.copy()
-    new_task_element["loss_sparsity_weight"] = 0.04
+    new_task_element["num_concepts"] = 500
     tasks.append(new_task_element)
 
     # gpu 3
     new_task_element = seed_task_elements.copy()
-    new_task_element["loss_sparsity_weight"] = 0.04
-    new_task_element["num_attended_concepts"] = 30
+    new_task_element["num_concepts"] = 1000
     tasks.append(new_task_element)
 
-    # # gpu 4
-    # new_task_element = seed_task_elements.copy()
-    # new_task_element["model"] = "BasicQuantResNet18V4Smooth"
-    # tasks.append(new_task_element)
+    # gpu 4
+    new_task_element = seed_task_elements.copy()
+    new_task_element["use_model"] = "BasicQuantResNet18V4Smooth"
+    new_task_element["num_concepts"] = 50
+    new_task_element["att_smoothing"] = 0.2
+    tasks.append(new_task_element)
 
-    # # gpu 5
-    # new_task_element = seed_task_elements.copy()
-    # new_task_element["model"] = "BasicQuantResNet18V4Smooth"
-    # new_task_element["num_attended_concepts"] = 10
-    # tasks.append(new_task_element)
+    # gpu 5
+    new_task_element = seed_task_elements.copy()
+    new_task_element["use_model"] = "BasicQuantResNet18V4Smooth"
+    new_task_element["num_concepts"] = 250
+    new_task_element["att_smoothing"] = 0.2
+    tasks.append(new_task_element)
 
-    # # gpu 6
-    # new_task_element = seed_task_elements.copy()
-    # new_task_element["model"] = "BasicQuantResNet18V4Smooth"
-    # new_task_element["warmup_model"] = "BasicQuantResNet18V4Smooth"
-    # new_task_element["warmup_checkpoint_path"] = "checkpoints/Sampled_ImageNet_200x1000_200x25_Seed_6/BasicQuantResNet18V4Smooth/202309111916_on_gpu_9/epoch_38_0.8721_0.4077_0.7007_0.7036_0.1140_0.4274_65.6_100.6_70.3_98.2_0.0.pt"
-    # tasks.append(new_task_element)
+    # gpu 6
+    new_task_element = seed_task_elements.copy()
+    new_task_element["use_model"] = "BasicQuantResNet18V4Smooth"
+    new_task_element["num_concepts"] = 500
+    new_task_element["att_smoothing"] = 0.2
+    tasks.append(new_task_element)
 
-    # # gpu 7
-    # new_task_element = seed_task_elements.copy()
-    # new_task_element["model"] = "BasicQuantResNet18V4Smooth"
-    # new_task_element["num_attended_concepts"] = 10
-    # new_task_element["warmup_model"] = "BasicQuantResNet18V4Smooth"
-    # new_task_element["warmup_checkpoint_path"] = "checkpoints/Sampled_ImageNet_200x1000_200x25_Seed_6/BasicQuantResNet18V4Smooth/202309111916_on_gpu_9/epoch_38_0.8721_0.4077_0.7007_0.7036_0.1140_0.4274_65.6_100.6_70.3_98.2_0.0.pt"
-    # tasks.append(new_task_element)
-
-    # # gpu 8
-    # new_task_element = seed_task_elements.copy()
-    # new_task_element["num_concepts"] = 50
-    # tasks.append(new_task_element)
-
-    # # gpu 9
-    # new_task_element = seed_task_elements.copy()
-    # new_task_element["num_concepts"] = 500
-    # tasks.append(new_task_element)
+    # gpu 7
+    new_task_element = seed_task_elements.copy()
+    new_task_element["use_model"] = "BasicQuantResNet18V4Smooth"
+    new_task_element["num_concepts"] = 1000
+    new_task_element["att_smoothing"] = 0.2
+    tasks.append(new_task_element)
 
     if parallel:
         num_gpus = len(gpus)
@@ -131,7 +121,7 @@ def generate_command(task_elements, excute=False):
     summary_log_dir = os.path.join(
         "./logs/",
         task_elements["mode"],
-        task_elements["data_folder"]
+        task_elements["dataset_name"]
     )
     if not os.path.exists(summary_log_dir):
         os.makedirs(summary_log_dir)
@@ -152,8 +142,8 @@ def generate_command(task_elements, excute=False):
     detailed_log_dir = os.path.join(
         "./logs/",
         task_elements["mode"],
-        task_elements["data_folder"],
-        task_elements.get("warmup_model", "")+task_elements["model"]
+        task_elements["dataset_name"],
+        task_elements.get("warmup_model", "")+task_elements["use_model"]
     )
     if not os.path.exists(detailed_log_dir):
         os.makedirs(detailed_log_dir)

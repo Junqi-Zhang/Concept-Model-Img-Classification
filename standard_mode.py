@@ -1,13 +1,13 @@
 import os
 import sys
 import json
+import math
 import time
 import argparse
 from tqdm import tqdm
 from pprint import pprint
 from collections import OrderedDict
 
-import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -291,7 +291,10 @@ def compute_loss(returned_dict, targets, train=False):
     def num_attended_concepts_s99(attention_weights):
         with torch.no_grad():
             s99 = torch.quantile(
-                torch.sum((attention_weights - 1e-7) > 0, dim=1),
+                torch.sum(
+                    (attention_weights - 1e-7) > 0,
+                    dim=1
+                ).type(torch.float),
                 0.99
             ).item()
         return s99
@@ -312,7 +315,7 @@ optimizer = optim.AdamW(
 
 
 def warmup_lambda(epoch):
-    half_epochs = config.warmup_epochs // 2
+    half_epochs = math.ceil(config.warmup_epochs / 2)
     if epoch < half_epochs:
         return 1 / half_epochs
     elif epoch < config.warmup_epochs:
@@ -390,30 +393,35 @@ def run_epoch(desc, model, dataloader, classes_idx, train=False, metric_prefix="
                     attended_concepts_count = torch.sum(
                         (returned_dict.get("attention_weights").data - 1e-7) > 0,
                         dim=1
-                    )
-                    s10 = torch.quantile(attended_concepts_count, 0.10).item()
-                    s50 = torch.quantile(attended_concepts_count, 0.50).item()
-                    s90 = torch.quantile(attended_concepts_count, 0.90).item()
+                    ).type(torch.float)
+                    s10 = torch.quantile(attended_concepts_count, 0.10)
+                    s50 = torch.quantile(attended_concepts_count, 0.50)
+                    s90 = torch.quantile(attended_concepts_count, 0.90)
                 else:
                     s10 = -1
                     s50 = -1
                     s90 = -1
 
-            def update_metric_dict(key, value):
-                metric_dict[metric_prefix + key] = (
-                    metric_dict.get(
-                        metric_prefix + key, 0
-                    ) * step + value
-                ) / (step + 1)
+            def update_metric_dict(key, value, average=True):
+                if average:
+                    metric_dict[metric_prefix + key] = (
+                        metric_dict.get(
+                            metric_prefix + key, 0
+                        ) * step + value
+                    ) / (step + 1)
+                else:
+                    metric_dict[metric_prefix + key] = value
 
+            update_metric_dict("acc", acc.item())
+            update_metric_dict("acc_subset", acc_subset.item())
             update_metric_dict("loss", loss.item())
             update_metric_dict("loss_cpi", loss_cls_per_img.item())
             update_metric_dict("loss_ipc", loss_img_per_cls.item())
-            update_metric_dict("loss_sps", loss_sparsity.item())
-            metric_dict["loss_sps_w"] = config.loss_sparsity_weight
             update_metric_dict("loss_dvs", loss_diversity.item())
-            update_metric_dict("acc", acc.item())
-            update_metric_dict("acc_subset", acc_subset.item())
+            update_metric_dict("loss_sps", loss_sparsity.item())
+            update_metric_dict(
+                "loss_sps_w", config.loss_sparsity_weight, average=False
+            )
             update_metric_dict("s10", s10.item())
             update_metric_dict("s50", s50.item())
             update_metric_dict("s90", s90.item())

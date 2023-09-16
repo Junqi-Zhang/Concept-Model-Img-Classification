@@ -14,29 +14,26 @@ parser.add_argument("--gpus", default=[0], type=int, nargs="*")
 
 
 seed_task_elements = {
-    # "mode": "overfit",
-    # "data_folder": "Sampled_ImageNet_Val",
     "mode": "standard",
-    # "data_folder": "Sampled_ImageNet",
-    "data_folder": "Sampled_ImageNet_200x1000_200x25_Seed_6",
+    "dataset_name": "Sampled_ImageNet_200x1000_200x25_Seed_6",
     # "warmup_model": "",
     # "warmup_checkpoint_path": "",
-    "model": "BasicQuantResNet18V4Smooth",
-    # "model": "ResNet18",
+    "use_model": "BasicQuantResNet18V4Smooth",
     "num_concepts": 250,
-    "num_attended_concepts": 10,
+    "num_attended_concepts": 50,
     "norm_concepts": False,
     "norm_summary": True,
     "grad_factor": 1,
-    "att_smoothing": 0.3,
+    "att_smoothing": 0.2,
     "loss_sparsity_weight": 0,
     "loss_sparsity_adaptive": False,
-    "loss_diversity_weight": 0,
+    "loss_diversity_weight": 1.0,
     "supplementary_description": "Check Rebuilt Code",
-    "num_epochs": 1000,
+    "num_epochs": 5,
+    "warmup_epochs": 3,
     "batch_size": 125,
     # "batch_size": 75,
-    "learning_rate": 5e-4,
+    "learning_rate": 2e-4,
     "save_interval": 1
 }
 
@@ -96,7 +93,7 @@ def generate_command(task_elements, excute=False):
     summary_log_dir = os.path.join(
         "./logs/",
         task_elements["mode"],
-        task_elements["data_folder"]
+        task_elements["dataset_name"]
     )
     if not os.path.exists(summary_log_dir):
         os.makedirs(summary_log_dir)
@@ -117,8 +114,8 @@ def generate_command(task_elements, excute=False):
     detailed_log_dir = os.path.join(
         "./logs/",
         task_elements["mode"],
-        task_elements["data_folder"],
-        task_elements.get("warmup_model", "")+task_elements["model"]
+        task_elements["dataset_name"],
+        task_elements.get("warmup_model", "")+task_elements["use_model"]
     )
     if not os.path.exists(detailed_log_dir):
         os.makedirs(detailed_log_dir)

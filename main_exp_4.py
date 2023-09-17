@@ -20,15 +20,15 @@ seed_task_elements = {
     # "warmup_checkpoint_path": "",
     "use_model": "BasicQuantResNet18V4Smooth",
     "num_concepts": 500,
-    "num_attended_concepts": 50,
+    "num_attended_concepts": 100,
     "norm_concepts": False,
     "norm_summary": True,
     "grad_factor": 1,
-    "att_smoothing": 0.2,
-    "loss_sparsity_weight": 0.02,
+    "att_smoothing": 0.1,
+    "loss_sparsity_weight": 0.01,
     "loss_sparsity_adaptive": False,
     "loss_diversity_weight": 1.0,
-    "supplementary_description": "Test Rebuilt V4 V4Smooth on 500_500 dataset",
+    "supplementary_description": "Test Rebuilt V4Smooth on 500_500 dataset",
     "num_epochs": 1000,
     "warmup_epochs": 10,
     "batch_size": 125,
@@ -48,13 +48,13 @@ def generate_tasks(seed_task_elements, parallel, gpus):
 
     # task 2
     new_task_element = seed_task_elements.copy()
-    new_task_element["num_attended_concepts"] = 60
+    new_task_element["att_smoothing"] = 0.3
     tasks.append(new_task_element)
 
-    # # task 3
-    # new_task_element = seed_task_elements.copy()
-    # new_task_element["att_smoothing"] = 0.4
-    # tasks.append(new_task_element)
+    # task 3
+    new_task_element = seed_task_elements.copy()
+    new_task_element["att_smoothing"] = 0.05
+    tasks.append(new_task_element)
 
     # # task 4
     # new_task_element = seed_task_elements.copy()

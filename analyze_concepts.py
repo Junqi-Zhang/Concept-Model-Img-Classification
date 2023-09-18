@@ -26,7 +26,7 @@ from modules.losses import capped_lp_norm_hinge, orthogonality_l2_norm, PIContro
 # Basic settings
 ##########################
 
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+os.environ["CUDA_VISIBLE_DEVICES"] = "9"
 
 if torch.cuda.is_available():
     device = "cuda"
@@ -36,7 +36,7 @@ else:
 config = Recorder()
 
 # dataset
-config.dataset_name = "Sampled_ImageNet_500x1000_500x5_Seed_6"  # 'n02391049' 134
+config.dataset_name = "Sampled_ImageNet_500x1000_500x5_Seed_6"  # 'n02391049'  340, 'n02389026' 339.
 # config.dataset_name = "Sampled_ImageNet_200x1000_200x25_Seed_6"  # 'n02391049' 134
 # config.dataset_name = "Sampled_ImageNet"  # 'n02391049' 83
 config.update(PROVIDED_DATASETS[config.dataset_name])
@@ -49,18 +49,17 @@ config.norm_concepts = False
 config.norm_summary = True
 config.grad_factor = 1
 # loss
-config.loss_sparsity_weight = 0.0
+config.loss_sparsity_weight = 0.02
 config.loss_sparsity_adaptive = False
 config.loss_diversity_weight = 1.0
 # train
 config.batch_size = 125
-config.monitor_metric = "minor_acc_subset"
 # device
 config.dataloader_workers = 16
 config.dataloader_pin_memory = True
 # checkpoint
-config.load_checkpoint_path = "./checkpoints/Sampled_ImageNet_200x1000_200x25_Seed_6/BasicQuantResNet18V4NoSparse/202309102206_on_gpu_7/best_epoch_34_0.8877_0.4262_0.7165_0.7189_0.1354_0.4568_250.0_250.0_250.0_250.0_0.0.pt"
-config.checkpoint_desc = "250概念有正交约束"
+config.load_checkpoint_path = "./checkpoints/Sampled_ImageNet_500x1000_500x5_Seed_6/BasicQuantResNet18V4Smooth/202309170851_on_gpu_5/best_epoch_29_0.7879_0.3334_0.6603_0.6603_0.0058_0.2832_75.5_104.6_78.5_103.5_0.0.pt"
+config.checkpoint_desc = "500概念_smooth0.2_sps0.02to100"
 
 # Confirm basic settings
 print("\n"+"#"*100)
@@ -381,7 +380,7 @@ for label, attention in zip(analyze_label, analyze_attention):
         label_concept_count_dict[label] = np.zeros_like(
             attention, dtype=int
         )
-    indices = np.where(attention > 0.05)
+    indices = np.where(attention > 0.0)
     label_concept_count_dict[label][indices] += 1
 
 label_concept_dict = dict()

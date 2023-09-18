@@ -35,8 +35,8 @@ grouped_df = select_df[
      'best_minor_s10', 'best_minor_s50', 'best_minor_s90',
      'best_val_loss_dvs']
 ].groupby(
-    ['use_model', 'num_concepts', 'num_attended_concepts', 'norm_concepts', 'att_smoothing',
-     'loss_sparsity_weight', 'loss_sparsity_adaptive', 'loss_diversity_weight']
+    ['use_model', 'att_smoothing', 'num_concepts', 'loss_sparsity_weight', 'num_attended_concepts',
+     'loss_sparsity_adaptive', 'norm_concepts', 'loss_diversity_weight']
 )
 
 pd.concat(

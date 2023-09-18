@@ -37,12 +37,12 @@ parser.add_argument("--dataset_name", required=True, type=str)
 parser.add_argument("--warmup_model", default="", type=str)
 parser.add_argument("--warmup_checkpoint_path", default="", type=str)
 parser.add_argument("--use_model", required=True, type=str)
+parser.add_argument("--att_smoothing", default=0.0, type=float)
 parser.add_argument("--num_concepts", default=512, type=int)
 parser.add_argument("--num_attended_concepts", default=50, type=int)
 parser.add_argument("--norm_concepts", default="False")
 parser.add_argument("--norm_summary", default="False")
 parser.add_argument("--grad_factor", default=1.0, type=float)
-parser.add_argument("--att_smoothing", default=0.0, type=float)
 # loss
 parser.add_argument("--loss_sparsity_weight", default=0.0, type=float)
 parser.add_argument("--loss_sparsity_adaptive", default="False")
@@ -394,9 +394,9 @@ def run_epoch(desc, model, dataloader, classes_idx, train=False, metric_prefix="
                         (returned_dict.get("attention_weights").data - 1e-7) > 0,
                         dim=1
                     ).type(torch.float)
-                    s10 = torch.quantile(attended_concepts_count, 0.10)
-                    s50 = torch.quantile(attended_concepts_count, 0.50)
-                    s90 = torch.quantile(attended_concepts_count, 0.90)
+                    s10 = torch.quantile(attended_concepts_count, 0.10).item()
+                    s50 = torch.quantile(attended_concepts_count, 0.50).item()
+                    s90 = torch.quantile(attended_concepts_count, 0.90).item()
                 else:
                     s10 = -1
                     s50 = -1
@@ -422,9 +422,9 @@ def run_epoch(desc, model, dataloader, classes_idx, train=False, metric_prefix="
             update_metric_dict(
                 "loss_sps_w", config.loss_sparsity_weight, average=False
             )
-            update_metric_dict("s10", s10.item())
-            update_metric_dict("s50", s50.item())
-            update_metric_dict("s90", s90.item())
+            update_metric_dict("s10", s10)
+            update_metric_dict("s50", s50)
+            update_metric_dict("s90", s90)
 
             pbar.set_postfix(metric_dict)
             pbar.update(1)

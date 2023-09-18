@@ -3,23 +3,21 @@ import shutil
 import sys
 import math
 from tqdm import tqdm
-from pprint import pprint
 from PIL import Image
 from collections import OrderedDict
 
+import numpy as np  # 在 import torch 前
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
-import numpy as np
 from torch.utils.data import DataLoader
 from torchvision import transforms
 from torchvision.datasets import ImageFolder
 
-from modules.data_folders import PROVIDED_DATASETS
-from modules.models import MODELS
-from modules.models_exp import MODELS_EXP
-from modules.utils import load_model, Recorder
-from modules.losses import capped_lp_norm_hinge, orthogonality_l2_norm, PIController
+from data_folders import PROVIDED_DATA_FOLDERS
+from models import MODELS
+from models_exp import MODELS_EXP
+from utils import capped_lp_norm, orthogonality_l2_norm, PIController
+from utils import load
 
 
 ##########################
@@ -33,43 +31,36 @@ if torch.cuda.is_available():
 else:
     device = "cpu"
 
-config = Recorder()
+use_data_folder = "Sampled_ImageNet_200x1000_200x25_Seed_6"  # # 'n02391049' 134
+# use_data_folder = "Sampled_ImageNet"  # # 'n02391049' 83
+use_data_folder_info = PROVIDED_DATA_FOLDERS[use_data_folder]
+num_classes = use_data_folder_info["num_classes"]
 
-# dataset
-config.dataset_name = "Sampled_ImageNet_500x1000_500x5_Seed_6"  # 'n02391049' 134
-# config.dataset_name = "Sampled_ImageNet_200x1000_200x25_Seed_6"  # 'n02391049' 134
-# config.dataset_name = "Sampled_ImageNet"  # 'n02391049' 83
-config.update(PROVIDED_DATASETS[config.dataset_name])
-# model
-config.use_model = "BasicQuantResNet18V4Smooth"
-config.att_smoothing = 0.2
-config.num_concepts = 500
-config.num_attended_concepts = 100
-config.norm_concepts = False
-config.norm_summary = True
-config.grad_factor = 1
-# loss
-config.loss_sparsity_weight = 0.0
-config.loss_sparsity_adaptive = False
-config.loss_diversity_weight = 1.0
-# train
-config.batch_size = 125
-config.monitor_metric = "minor_acc_subset"
-# device
-config.dataloader_workers = 16
-config.dataloader_pin_memory = True
-# checkpoint
-config.load_checkpoint_path = "./checkpoints/Sampled_ImageNet_200x1000_200x25_Seed_6/BasicQuantResNet18V4NoSparse/202309102206_on_gpu_7/best_epoch_34_0.8877_0.4262_0.7165_0.7189_0.1354_0.4568_250.0_250.0_250.0_250.0_0.0.pt"
-config.checkpoint_desc = "250概念有正交约束"
+PROVIDED_MODELS = OrderedDict(**MODELS, **MODELS_EXP)
+use_model = "BasicQuantResNet18V4NoSparse"
+num_concepts = 250
+num_attended_concepts = 5
+norm_concepts = True
+norm_summary = True
+grad_factor = 1
+loss_sparsity_weight = 0.0
+loss_sparsity_adaptive = False
+loss_diversity_weight = 1.0
 
-# Confirm basic settings
-print("\n"+"#"*100)
-pprint(config.to_dict())
-print("#"*100)
+batch_size = 125
+
+load_checkpoint_path = "./checkpoints/Sampled_ImageNet_200x1000_200x25_Seed_6/BasicQuantResNet18V4NoSparse/202309102206_on_gpu_7/best_epoch_34_0.8877_0.4262_0.7165_0.7189_0.1354_0.4568_250.0_250.0_250.0_250.0_0.0.pt"
+checkpoint_desc = "250概念有正交约束"
 
 ##########################
 # Dataset and DataLoader
 ##########################
+
+# 训练和验证数据集
+train_data = use_data_folder_info["train_folder_path"]
+eval_data = use_data_folder_info["val_folder_path"]
+eval_major_data = use_data_folder_info["major_val_folder_path"]
+eval_minor_data = use_data_folder_info["minor_val_folder_path"]
 
 train_transform = transforms.Compose(
     [
@@ -93,19 +84,14 @@ eval_transform = transforms.Compose(
 )
 
 # Load the dataset from the directory
-train_dataset = ImageFolder(
-    root=config.train_folder_path,
-    transform=train_transform
-)
+train_dataset = ImageFolder(root=train_data, transform=train_transform)
 train_classes_idx = [idx for idx in train_dataset.class_to_idx.values()]
-eval_dataset = ImageFolder(
-    root=config.val_folder_path,
-    transform=eval_transform
-)
+eval_dataset = ImageFolder(root=eval_data, transform=eval_transform)
 eval_classes_idx = [idx for idx in eval_dataset.class_to_idx.values()]
 
-tmp_major_dataset = ImageFolder(root=config.major_val_folder_path)
-tmp_minor_dataset = ImageFolder(root=config.minor_val_folder_path)
+# major_val 和 minor_val 的类别是 train 和 val 的子集
+tmp_major_dataset = ImageFolder(root=eval_major_data)
+tmp_minor_dataset = ImageFolder(root=eval_minor_data)
 
 major_to_train_idx_transform = dict()
 for key, value in tmp_major_dataset.class_to_idx.items():
@@ -126,17 +112,13 @@ def minor_to_train(target):
 
 
 eval_major_dataset = ImageFolder(
-    root=config.major_val_folder_path,
-    transform=eval_transform,
-    target_transform=major_to_train
+    root=eval_major_data, transform=eval_transform, target_transform=major_to_train
 )
 eval_major_classes_idx = [
     major_to_train(idx) for idx in eval_major_dataset.class_to_idx.values()
 ]
 eval_minor_dataset = ImageFolder(
-    root=config.minor_val_folder_path,
-    transform=eval_transform,
-    target_transform=minor_to_train
+    root=eval_minor_data, transform=eval_transform, target_transform=minor_to_train
 )
 eval_minor_classes_idx = [
     minor_to_train(idx) for idx in eval_minor_dataset.class_to_idx.values()
@@ -145,111 +127,80 @@ eval_minor_classes_idx = [
 
 # Create DataLoader instances
 
+num_workers = 8
+pin_memory = True
+
 train_loader = DataLoader(
     train_dataset, shuffle=False,
-    batch_size=config.batch_size,
-    num_workers=config.dataloader_workers,
-    pin_memory=config.dataloader_pin_memory
+    batch_size=batch_size, num_workers=num_workers, pin_memory=pin_memory
 )
 eval_loader = DataLoader(
     eval_dataset, shuffle=False,
-    batch_size=config.batch_size,
-    num_workers=config.dataloader_workers,
-    pin_memory=config.dataloader_pin_memory
+    batch_size=batch_size, num_workers=num_workers, pin_memory=pin_memory
 )
 eval_major_loader = DataLoader(
     eval_major_dataset, shuffle=False,
-    batch_size=config.batch_size,
-    num_workers=config.dataloader_workers,
-    pin_memory=config.dataloader_pin_memory
+    batch_size=batch_size, num_workers=num_workers, pin_memory=pin_memory
 )
 eval_minor_loader = DataLoader(
     eval_minor_dataset, shuffle=False,
-    batch_size=config.batch_size,
-    num_workers=config.dataloader_workers,
-    pin_memory=config.dataloader_pin_memory
+    batch_size=batch_size, num_workers=num_workers, pin_memory=pin_memory
 )
 
 ##########################
 # Model, loss and optimizer
 ##########################
 
-PROVIDED_MODELS = OrderedDict(**MODELS, **MODELS_EXP)
-
-model_parameters = dict(
-    {
-        "num_classes": config.num_classes,
-        "num_concepts": config.num_concepts,
-        "norm_concepts": config.norm_concepts,
-        "norm_summary": config.norm_summary,
-        "grad_factor": config.grad_factor,
-        "smoothing": config.att_smoothing
-    }
-)
-
-model = PROVIDED_MODELS[config.use_model](**model_parameters).to(device)
-
-load_model(model, config.load_checkpoint_path)
+model = PROVIDED_MODELS[use_model](num_classes,
+                                   num_concepts,
+                                   norm_concepts,
+                                   norm_summary,
+                                   grad_factor).to(device)
+load(model, load_checkpoint_path)
 
 criterion = nn.CrossEntropyLoss()
 sparsity_controller = PIController(
     kp=0.001, ki=0.00001,
-    target_metric=config.num_attended_concepts,
-    initial_weight=config.loss_sparsity_weight
+    target_metric=num_attended_concepts,
+    initial_weight=loss_sparsity_weight
 )
 
 
 def compute_loss(returned_dict, targets, train=False):
+
+    global loss_sparsity_weight
+
     outputs = returned_dict["outputs"]
+
+    # 代码兼容 ResNet18 等常规模型
     attention_weights = returned_dict.get("attention_weights", None)
     concept_similarity = returned_dict.get("concept_similarity", None)
 
-    def normalize_rows(input_tensor, epsilon=1e-10):
-        input_tensor = input_tensor.to(torch.float)
-        row_sums = torch.sum(input_tensor, dim=1, keepdim=True)
-        row_sums += epsilon
-        normalized_tensor = input_tensor / row_sums
-        return normalized_tensor
-
-    loss_cls_per_img = criterion(outputs, targets)  # B * K
-    loss_img_per_cls = criterion(
-        outputs.t(), normalize_rows(F.one_hot(targets, config.num_classes).t())
-    )  # K * B
-    loss_classification = (loss_cls_per_img + loss_img_per_cls) / 2.0
-
     if (attention_weights is None) and (concept_similarity is None):
+        loss_classification = criterion(outputs, targets)
         loss_sparsity = torch.tensor(0.0)
         loss_diversity = torch.tensor(0.0)
-        loss = loss_classification + config.loss_sparsity_weight * \
-            loss_sparsity + config.loss_diversity_weight * loss_diversity
-        return loss, loss_cls_per_img, loss_img_per_cls, loss_sparsity, loss_diversity
+        loss = loss_classification + loss_sparsity_weight * \
+            loss_sparsity + loss_diversity_weight * loss_diversity
+        return loss, loss_classification, loss_sparsity, loss_diversity
 
-    loss_sparsity = capped_lp_norm_hinge(
-        attention_weights,
-        target=config.num_attended_concepts,
-        gamma=1.0/config.num_attended_concepts,
-        reduction="sum")
+    loss_classification = criterion(outputs, targets)
+    loss_sparsity = capped_lp_norm(attention_weights)
     loss_diversity = orthogonality_l2_norm(concept_similarity)
 
-    def num_attended_concepts_s99(attention_weights):
+    def compute_s50(attention_weights):
         with torch.no_grad():
-            s99 = torch.quantile(
-                torch.sum(
-                    (attention_weights - 1e-7) > 0,
-                    dim=1
-                ).type(torch.float),
-                0.99
-            ).item()
-        return s99
+            s50 = torch.sum(attention_weights > 0, dim=1).median().item()
+        return s50
 
-    if config.loss_sparsity_adaptive and train:
-        s99 = num_attended_concepts_s99(attention_weights)
-        config.loss_sparsity_weight = sparsity_controller.update(s99)
+    if loss_sparsity_adaptive and train:  # 只有训练的时候才能PI控制
+        s50 = compute_s50(attention_weights)
+        loss_sparsity_weight = sparsity_controller.update(s50)
 
-    loss = loss_classification + config.loss_sparsity_weight * \
-        loss_sparsity + config.loss_diversity_weight * loss_diversity
+    loss = loss_classification + loss_sparsity_weight * \
+        loss_sparsity + loss_diversity_weight * loss_diversity
 
-    return loss, loss_cls_per_img, loss_img_per_cls, loss_sparsity, loss_diversity
+    return loss, loss_classification, loss_sparsity, loss_diversity
 
 
 ##########################
@@ -257,11 +208,21 @@ def compute_loss(returned_dict, targets, train=False):
 ##########################
 
 
-def run_epoch(desc, model, dataloader, classes_idx, metric_prefix=""):
+def run_epoch(desc, model, dataloader, classes_idx):
 
     model.eval()
 
-    metric_dict = dict()
+    metric_dict = {
+        "loss": 0.0,
+        "loss_classification": 0.0,
+        "loss_sparsity": 0.0,
+        "loss_sparsity_weight": loss_sparsity_weight,
+        "loss_diversity": 0.0,
+        "acc": 0.0,
+        "acc_subset": 0.0,
+        "s50": -1.0,
+        "s90": -1.0
+    }
 
     attention = []
     label = []
@@ -282,7 +243,7 @@ def run_epoch(desc, model, dataloader, classes_idx, metric_prefix=""):
 
             with torch.no_grad():
                 returned_dict = model(data)
-                loss, loss_cls_per_img, loss_img_per_cls, loss_sparsity, loss_diversity = compute_loss(
+                loss, loss_classification, loss_sparsity, loss_diversity = compute_loss(
                     returned_dict, targets, train=False
                 )
 
@@ -304,67 +265,72 @@ def run_epoch(desc, model, dataloader, classes_idx, metric_prefix=""):
                                            1) == targets).sum() / targets.size(0)
 
                 if returned_dict.get("attention_weights", None) is not None:
-                    attended_concepts_count = torch.sum(
+                    c = torch.sum(
                         (returned_dict.get("attention_weights").data - 1e-7) > 0,
                         dim=1
-                    ).type(torch.float)
-                    s10 = torch.quantile(attended_concepts_count, 0.10).item()
-                    s50 = torch.quantile(attended_concepts_count, 0.50).item()
-                    s90 = torch.quantile(attended_concepts_count, 0.90).item()
+                    ).cpu().numpy()
+                    n_selected_50 = np.percentile(c, 50)
+                    n_selected_90 = np.percentile(c, 90)
                 else:
-                    s10 = -1
-                    s50 = -1
-                    s90 = -1
+                    n_selected_50 = -1
+                    n_selected_90 = -1
 
-            def update_metric_dict(key, value, average=True):
-                if average:
-                    metric_dict[metric_prefix + key] = (
-                        metric_dict.get(
-                            metric_prefix + key, 0
-                        ) * step + value
-                    ) / (step + 1)
-                else:
-                    metric_dict[metric_prefix + key] = value
+            metric_dict["loss"] = (metric_dict["loss"] *
+                                   step + loss.item()) / (step + 1)
+            metric_dict["loss_classification"] = (metric_dict["loss_classification"] *
+                                                  step + loss_classification.item()) / (step + 1)
+            metric_dict["loss_sparsity"] = (metric_dict["loss_sparsity"] *
+                                            step + loss_sparsity.item()) / (step + 1)
+            metric_dict["loss_sparsity_weight"] = loss_sparsity_weight
+            metric_dict["loss_diversity"] = (metric_dict["loss_diversity"] *
+                                             step + loss_diversity.item()) / (step + 1)
+            metric_dict["acc"] = (metric_dict["acc"] *
+                                  step + acc.item()) / (step + 1)
+            metric_dict["acc_subset"] = (metric_dict["acc_subset"] *
+                                         step + acc_subset.item()) / (step + 1)
+            metric_dict["s50"] = (metric_dict["s50"] *
+                                  step + n_selected_50) / (step + 1)
+            metric_dict["s90"] = (metric_dict["s90"] *
+                                  step + n_selected_90) / (step + 1)
 
-            update_metric_dict("acc", acc.item())
-            update_metric_dict("acc_subset", acc_subset.item())
-            update_metric_dict("loss", loss.item())
-            update_metric_dict("loss_cpi", loss_cls_per_img.item())
-            update_metric_dict("loss_ipc", loss_img_per_cls.item())
-            update_metric_dict("loss_dvs", loss_diversity.item())
-            update_metric_dict("loss_sps", loss_sparsity.item())
-            update_metric_dict(
-                "loss_sps_w", config.loss_sparsity_weight, average=False
+            pbar.set_postfix(
+                **{
+                    "loss": metric_dict["loss"],
+                    "loss_cls": metric_dict["loss_classification"],
+                    "loss_sps": metric_dict["loss_sparsity"],
+                    "loss_sps_w": metric_dict["loss_sparsity_weight"],
+                    "loss_dvs": metric_dict["loss_diversity"],
+                    "acc": metric_dict["acc"],
+                    "acc_sub": metric_dict["acc_subset"],
+                    "s50": metric_dict["s50"],
+                    "s90": metric_dict["s90"]
+                }
             )
-            update_metric_dict("s10", s10)
-            update_metric_dict("s50", s50)
-            update_metric_dict("s90", s90)
-
-            pbar.set_postfix(metric_dict)
             pbar.update(1)
 
             step += 1
+
     return attention, label
 
 
 desc = f"Training"
 train_attention, train_label = run_epoch(
-    desc, model, train_loader, train_classes_idx, metric_prefix="train_"
+    desc, model, train_loader, train_classes_idx
 )
 
 desc = f"Evaluate"
 eval_attention, eval_label = run_epoch(
-    desc, model, eval_loader, eval_classes_idx, metric_prefix="val_"
+    desc, model, eval_loader, eval_classes_idx
 )
 
 desc = f"MajorVal"
 eval_major_attention, eval_major_label = run_epoch(
-    desc, model, eval_major_loader, eval_major_classes_idx, metric_prefix="major_"
+    desc, model, eval_major_loader, eval_major_classes_idx
 )
 
 desc = f"MinorVal"
 eval_minor_attention, eval_minor_label = run_epoch(
-    desc, model, eval_minor_loader, eval_minor_classes_idx, metric_prefix="minor_"
+    desc, model, eval_minor_loader, eval_minor_classes_idx
 )
 
 
@@ -492,8 +458,8 @@ def copy_files_to_folder(file_list, target_folder):
 
 for i, image_paths in enumerate(concept_images):
     output_dir = os.path.join(
-        os.path.dirname(config.load_checkpoint_path),
-        config.checkpoint_desc
+        os.path.dirname(load_checkpoint_path),
+        checkpoint_desc
     )
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)

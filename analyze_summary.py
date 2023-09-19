@@ -1,6 +1,6 @@
 import pandas as pd
 
-summary_path = "./logs/standard/Sampled_ImageNet_500x1000_500x5_Seed_6/summary.log"
+summary_path = "./logs/standard/Sampled_ImageNet_500x1000_200x5_Seed_6/summary.log"
 
 pd.set_option('display.max_columns', None)
 pd.set_option('display.width', None)
@@ -11,7 +11,7 @@ summary_df = pd.read_json(summary_path, lines=True)
 
 select_df = summary_df[
     summary_df["use_model"].isin(
-        ["BasicQuantResNet18V4", "BasicQuantResNet18V4Smooth"]
+        ["BasicQuantResNet18V4", "BasicQuantResNet18V4Smooth", "ContrastiveResNet18"]
     )
 ][
     ['use_model', 'num_concepts', 'num_attended_concepts', 'norm_concepts', 'att_smoothing',

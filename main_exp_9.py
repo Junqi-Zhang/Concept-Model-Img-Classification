@@ -34,7 +34,8 @@ seed_task_elements = {
     "batch_size": 125,
     # "batch_size": 75,
     "learning_rate": 5e-4,
-    "save_interval": 1
+    "save_interval": 1,
+    "dataloader_workers": 16
 }
 
 

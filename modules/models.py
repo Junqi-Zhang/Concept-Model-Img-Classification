@@ -1,6 +1,5 @@
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 from torchvision.models import resnet18, resnet50
 from torch import Tensor
 from typing import Callable, Dict
@@ -439,7 +438,6 @@ class BasicConceptQuantizationV4Smooth(nn.Module):
         attention_weights = attention_weights / \
             torch.sqrt(torch.tensor(self.input_dim).float())
         attention_weights = self.sparsemax(attention_weights)  # Use sparsemax
-        # attention_weights = F.softmax(attention_weights, dim=1)  # Use softmax
 
         def smooth_tensor_matrix(input_matrix: torch.Tensor, smoothing=0.1):
             """

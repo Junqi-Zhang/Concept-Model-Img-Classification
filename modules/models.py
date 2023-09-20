@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+# import torch.nn.functional as F
 from torchvision.models import resnet18, resnet50
 from torch import Tensor
 from typing import Callable, Dict
@@ -507,6 +508,12 @@ class BasicConceptQuantizationV4Smooth(nn.Module):
         concept_similarity = torch.matmul(
             normalized_concepts, normalized_concepts.t()
         )  # C * C
+
+        # concept_similarity = F.cosine_similarity(
+        #     concepts.unsqueeze(1),
+        #     concepts.unsqueeze(0),
+        #     dim=2
+        # )  # C * C
 
         return {
             "outputs": outputs,

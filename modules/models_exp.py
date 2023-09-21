@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+from torchvision.models import resnet18
 from torch import Tensor
 from typing import Dict
 from collections import OrderedDict
@@ -81,7 +82,7 @@ class SmoothConceptQuantization(nn.Module):
         attention_weights = self.sparsemax(attention_weights)  # Use sparsemax
         # attention_weights = F.softmax(attention_weights, dim=1)  # Use softmax
 
-        def smooth_tensor_matrix(input_matrix: torch.Tensor, smoothing=0.1):
+        def smooth_tensor_matrix(input_matrix: Tensor, smoothing=0.1):
             """
             Smooth every row in a tensor matrix in PyTorch
             """
@@ -132,8 +133,116 @@ class SmoothConceptQuantization(nn.Module):
         }
 
 
+class BasicTextEncoder(nn.Module):
+    """
+    BasicTextEncoder is a simple text encoder that linearly transforms fixed text embeddings to a specified dimension.
+    """
+
+    def __init__(self, text_embeds: Tensor, output_dim: int = 512):
+        """
+        Initialize BasicTextEncoder.
+
+        Args:
+            text_embeds (Tensor): Text embeddings obtained from another language model.
+            output_dim (int, optional): The target dimension for the output. Defaults to 512.
+        """
+        super(BasicTextEncoder, self).__init__()
+        self.text_embeds = nn.Parameter(text_embeds, requires_grad=False)
+        self.linear = nn.Linear(text_embeds.size(1), output_dim)
+
+    def forward(self) -> Tensor:
+        """
+        Linearly transform the fixed text embeddings to the specified dimension.
+
+        Returns:
+            Tensor: The transformed text embeddings.
+        """
+        return self.linear(self.text_embeds)
+
+
+class OriTextQuantResNet18(nn.Module):
+    def __init__(
+        self,
+        num_concepts: int,
+        norm_concepts: bool,
+        concept_dim: int,
+        smoothing: float,
+        text_embeds: Tensor,
+        *args,
+        **kwargs
+    ):
+        super(OriTextQuantResNet18, self).__init__()
+
+        img_classifier = resnet18(
+            weights=None, num_classes=text_embeds.size(0)
+        )
+        self.backbone = nn.Sequential(*list(img_classifier.children())[:-1])
+
+        self.image_cq = SmoothConceptQuantization(
+            input_dim=concept_dim,
+            num_concepts=num_concepts,
+            norm_concepts=norm_concepts,
+            smoothing=smoothing
+        )
+        self.image_post_layernorm = nn.LayerNorm(concept_dim)
+        self.image_projection = nn.Parameter(
+            torch.Tensor(concept_dim, concept_dim)
+        )  # D * D
+
+        self.text_encoder = BasicTextEncoder(
+            text_embeds=text_embeds,
+            output_dim=concept_dim
+        )
+        self.text_post_layernorm = nn.LayerNorm(concept_dim)
+        self.text_projection = nn.Parameter(
+            torch.Tensor(concept_dim, concept_dim)
+        )  # D * D
+
+        # Scaler
+        self.logit_scale = nn.Parameter(torch.tensor(0.0))
+
+        # Parameter initialization
+        self.init_parameters()
+
+    def init_parameters(self) -> None:
+        # Initialize the mapping matrix from image/text space to image-text joint space
+        nn.init.xavier_uniform_(self.image_projection)
+        nn.init.xavier_uniform_(self.text_projection)
+
+    def forward(self, x: Tensor) -> Dict[str, Tensor]:
+        x = self.backbone(x)
+        x = x.view(x.size(0), -1)  # 512-dimensional vector for ResNet18
+        image_dict = self.image_cq(x)
+        image_embeds = torch.matmul(
+            self.image_post_layernorm(image_dict["concept_summary"]),
+            self.image_projection
+        )
+        image_embeds = image_embeds / image_embeds.norm(dim=1, keepdim=True)
+
+        text_embeds = torch.matmul(
+            self.text_post_layernorm(self.text_encoder()),
+            self.text_projection
+        )
+        text_embeds = text_embeds / text_embeds.norm(dim=1, keepdim=True)
+
+        # The shape of output is B * K,
+        # where K represents num_classes.
+        logit_scale = self.logit_scale.exp()
+        outputs = torch.matmul(
+            image_embeds, text_embeds.t()
+        ) * logit_scale  # B * K
+
+        return {
+            "outputs": outputs,
+            "attention_weights": image_dict["attention_weights"],
+            "concept_similarity": image_dict["concept_similarity"]
+        }
+
+
 MODELS_EXP = OrderedDict(
     {
-        "SmoothConceptQuantization": SmoothConceptQuantization
+        "SmoothConceptQuantization": SmoothConceptQuantization,
+        "BasicTextEncoder": BasicTextEncoder,
+        "OriTextQuantResNet18": OriTextQuantResNet18,
     }
 )

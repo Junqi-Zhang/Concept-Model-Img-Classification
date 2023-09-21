@@ -10,7 +10,7 @@ random.seed(RANDOM_SEED)
 SAMPLED_MAJOR_CLASS_NUM = 500
 MAJOR_CLASS_IMG_MAX_COUNT = 1000
 SAMPLED_MINOR_CLASS_NUM = 200
-MINOR_CLASS_IMG_MAX_COUNT = 0
+MINOR_CLASS_IMG_MAX_COUNT = 5
 
 IMAGENET_DATA_FOLDER = "../data/ImageNet/"
 SAMPLED_IMAGENET_DATA_FOLDER = (
@@ -55,13 +55,15 @@ for code in sampled_major_class_codes:
 
 sampled_train_img_num = 0
 
-# Set the number of samples for each major category
+# Set the number of samples for each category
 sample_num_per_class = dict()
 for code in sampled_major_class_codes:
     sample_num_per_class[code] = MAJOR_CLASS_IMG_MAX_COUNT
+for code in sampled_minor_class_codes:
+    sample_num_per_class[code] = MINOR_CLASS_IMG_MAX_COUNT
 
-# Create a folder for each major category
-for code in sampled_major_class_codes:
+# Create a folder for each category
+for code in sampled_class_codes:
     os.makedirs(os.path.join(SAMPLED_IMAGENET_DATA_FOLDER, "train", code))
 
 # Sample train data

@@ -17,6 +17,7 @@ from torchvision import transforms
 from torchvision.datasets import ImageFolder
 from torch.optim.lr_scheduler import LambdaLR, ReduceLROnPlateau
 
+from preprocess.imagenet_classes import IMAGENET2012_CLASSES_IDX
 from modules.data_folders import PROVIDED_DATASETS
 from modules.models import MODELS
 from modules.models_exp import MODELS_EXP
@@ -36,11 +37,13 @@ parser.add_argument("--dataset_name", required=True, type=str)
 # model
 parser.add_argument("--warmup_model", default="", type=str)
 parser.add_argument("--warmup_checkpoint_path", default="", type=str)
+parser.add_argument("--text_embeds_path", default="", type=str)
 parser.add_argument("--use_model", required=True, type=str)
 parser.add_argument("--att_smoothing", default=0.0, type=float)
 parser.add_argument("--num_concepts", default=512, type=int)
 parser.add_argument("--num_attended_concepts", default=50, type=int)
 parser.add_argument("--norm_concepts", default="False")
+parser.add_argument("--concept_dim", default=512, type=int)
 parser.add_argument("--norm_summary", default="False")
 parser.add_argument("--grad_factor", default=1.0, type=float)
 # loss
@@ -139,49 +142,66 @@ train_dataset = ImageFolder(
     root=config.train_folder_path,
     transform=train_transform
 )
-train_classes_idx = [idx for idx in train_dataset.class_to_idx.values()]
+train_idx_transform = dict()
+for key, value in train_dataset.class_to_idx.items():
+    train_idx_transform[value] = IMAGENET2012_CLASSES_IDX[key]
+train_classes_idx = [
+    train_idx_transform[idx] for idx in train_dataset.class_to_idx.values()
+]
+train_acc_mask_idx = [
+    idx for idx in train_dataset.class_to_idx.values()
+]
+
 eval_dataset = ImageFolder(
     root=config.val_folder_path,
     transform=eval_transform
 )
-eval_classes_idx = [idx for idx in eval_dataset.class_to_idx.values()]
+eval_idx_transform = dict()
+for key, value in eval_dataset.class_to_idx.items():
+    eval_idx_transform[value] = IMAGENET2012_CLASSES_IDX[key]
+eval_classes_idx = [
+    eval_idx_transform[idx] for idx in eval_dataset.class_to_idx.values()
+]
+eval_acc_mask_idx = [
+    idx for idx in eval_dataset.class_to_idx.values()
+]
 
 tmp_major_dataset = ImageFolder(root=config.major_val_folder_path)
-tmp_minor_dataset = ImageFolder(root=config.minor_val_folder_path)
-
-major_to_train_idx_transform = dict()
+major_to_eval_idx_transform = dict()
 for key, value in tmp_major_dataset.class_to_idx.items():
-    major_to_train_idx_transform[value] = train_dataset.class_to_idx[key]
+    major_to_eval_idx_transform[value] = eval_dataset.class_to_idx[key]
 
 
-def major_to_train(target):
-    return major_to_train_idx_transform[target]
-
-
-minor_to_train_idx_transform = dict()
-for key, value in tmp_minor_dataset.class_to_idx.items():
-    minor_to_train_idx_transform[value] = train_dataset.class_to_idx[key]
-
-
-def minor_to_train(target):
-    return minor_to_train_idx_transform[target]
+def major_to_eval_transform(target):
+    return major_to_eval_idx_transform[target]
 
 
 eval_major_dataset = ImageFolder(
     root=config.major_val_folder_path,
     transform=eval_transform,
-    target_transform=major_to_train
+    target_transform=major_to_eval_transform
 )
-eval_major_classes_idx = [
-    major_to_train(idx) for idx in eval_major_dataset.class_to_idx.values()
+eval_major_acc_mask_idx = [
+    major_to_eval_transform(idx) for idx in eval_major_dataset.class_to_idx.values()
 ]
+
+tmp_minor_dataset = ImageFolder(root=config.minor_val_folder_path)
+minor_to_eval_idx_transform = dict()
+for key, value in tmp_minor_dataset.class_to_idx.items():
+    minor_to_eval_idx_transform[value] = eval_dataset.class_to_idx[key]
+
+
+def minor_to_eval_transform(target):
+    return minor_to_eval_idx_transform[target]
+
+
 eval_minor_dataset = ImageFolder(
     root=config.minor_val_folder_path,
     transform=eval_transform,
-    target_transform=minor_to_train
+    target_transform=minor_to_eval_transform
 )
-eval_minor_classes_idx = [
-    minor_to_train(idx) for idx in eval_minor_dataset.class_to_idx.values()
+eval_minor_acc_mask_idx = [
+    minor_to_eval_transform(idx) for idx in eval_minor_dataset.class_to_idx.values()
 ]
 
 
@@ -223,9 +243,11 @@ model_parameters = dict(
         "num_classes": config.num_classes,
         "num_concepts": config.num_concepts,
         "norm_concepts": config.norm_concepts,
+        "concept_dim": config.concept_dim,
         "norm_summary": config.norm_summary,
         "grad_factor": config.grad_factor,
-        "smoothing": config.att_smoothing
+        "smoothing": config.att_smoothing,
+        "text_embeds": torch.load(config.text_embeds_path).t()
     }
 )
 
@@ -258,8 +280,8 @@ sparsity_controller = PIController(
 
 def compute_loss(returned_dict, targets, train=False):
     outputs = returned_dict["outputs"]
-    attention_weights = returned_dict.get("attention_weights", None)
-    concept_similarity = returned_dict.get("concept_similarity", None)
+    attention_weights = returned_dict["attention_weights"]
+    concept_similarity = returned_dict["concept_similarity"]
 
     def normalize_rows(input_tensor, epsilon=1e-10):
         input_tensor = input_tensor.to(torch.float)
@@ -269,17 +291,14 @@ def compute_loss(returned_dict, targets, train=False):
         return normalized_tensor
 
     loss_cls_per_img = criterion(outputs, targets)  # B * K
+    if train:
+        num_classes = len(train_classes_idx)
+    else:
+        num_classes = len(eval_classes_idx)
     loss_img_per_cls = criterion(
-        outputs.t(), normalize_rows(F.one_hot(targets, config.num_classes).t())
+        outputs.t(), normalize_rows(F.one_hot(targets, num_classes).t())
     )  # K * B
     loss_classification = (loss_cls_per_img + loss_img_per_cls) / 2.0
-
-    if (attention_weights is None) and (concept_similarity is None):
-        loss_sparsity = torch.tensor(0.0)
-        loss_diversity = torch.tensor(0.0)
-        loss = loss_classification + config.loss_sparsity_weight * \
-            loss_sparsity + config.loss_diversity_weight * loss_diversity
-        return loss, loss_cls_per_img, loss_img_per_cls, loss_sparsity, loss_diversity
 
     loss_sparsity = capped_lp_norm_hinge(
         attention_weights,
@@ -337,7 +356,7 @@ plateau_scheduler = ReduceLROnPlateau(
 ##########################
 
 
-def run_epoch(desc, model, dataloader, classes_idx, train=False, metric_prefix=""):
+def run_epoch(desc, model, dataloader, acc_mask_idx, train=False, metric_prefix=""):
     # train pipeline
     if train:
         model.train()
@@ -362,7 +381,7 @@ def run_epoch(desc, model, dataloader, classes_idx, train=False, metric_prefix="
 
             # forward pass
             if train:
-                returned_dict = model(data)
+                returned_dict = model(data, train_classes_idx)
                 loss, loss_cls_per_img, loss_img_per_cls, loss_sparsity, loss_diversity = compute_loss(
                     returned_dict, targets, train=True
                 )
@@ -373,7 +392,7 @@ def run_epoch(desc, model, dataloader, classes_idx, train=False, metric_prefix="
                 optimizer.step()
             else:
                 with torch.no_grad():
-                    returned_dict = model(data)
+                    returned_dict = model(data, eval_classes_idx)
                     loss, loss_cls_per_img, loss_img_per_cls, loss_sparsity, loss_diversity = compute_loss(
                         returned_dict, targets, train=False
                     )
@@ -385,22 +404,17 @@ def run_epoch(desc, model, dataloader, classes_idx, train=False, metric_prefix="
                                     1) == targets).sum() / targets.size(0)
 
                 mask = torch.zeros_like(returned_dict["outputs"].data)
-                mask[:, classes_idx] = 1
+                mask[:, acc_mask_idx] = 1
                 acc_subset = (torch.argmax(returned_dict["outputs"].data * mask,
                                            1) == targets).sum() / targets.size(0)
 
-                if returned_dict.get("attention_weights", None) is not None:
-                    attended_concepts_count = torch.sum(
-                        (returned_dict.get("attention_weights").data - 1e-7) > 0,
-                        dim=1
-                    ).type(torch.float)
-                    s10 = torch.quantile(attended_concepts_count, 0.10).item()
-                    s50 = torch.quantile(attended_concepts_count, 0.50).item()
-                    s90 = torch.quantile(attended_concepts_count, 0.90).item()
-                else:
-                    s10 = -1
-                    s50 = -1
-                    s90 = -1
+                attended_concepts_count = torch.sum(
+                    (returned_dict["attention_weights"].data - 1e-7) > 0,
+                    dim=1
+                ).type(torch.float)
+                s10 = torch.quantile(attended_concepts_count, 0.10)
+                s50 = torch.quantile(attended_concepts_count, 0.50)
+                s90 = torch.quantile(attended_concepts_count, 0.90)
 
             def update_metric_dict(key, value, average=True):
                 if average:
@@ -422,9 +436,9 @@ def run_epoch(desc, model, dataloader, classes_idx, train=False, metric_prefix="
             update_metric_dict(
                 "loss_sps_w", config.loss_sparsity_weight, average=False
             )
-            update_metric_dict("s10", s10)
-            update_metric_dict("s50", s50)
-            update_metric_dict("s90", s90)
+            update_metric_dict("s10", s10.item())
+            update_metric_dict("s50", s50.item())
+            update_metric_dict("s90", s90.item())
 
             pbar.set_postfix(metric_dict)
             pbar.update(1)
@@ -446,23 +460,23 @@ for epoch in range(config.num_epochs):
     # train one epoch
     desc = f"Training epoch {epoch + 1}/{config.num_epochs}"
     train_dict = run_epoch(desc, model, train_loader,
-                           train_classes_idx,
+                           train_acc_mask_idx,
                            train=True, metric_prefix="train_")
 
     # validation
     desc = f"Evaluate epoch {epoch + 1}/{config.num_epochs}"
     eval_dict = run_epoch(desc, model, eval_loader,
-                          eval_classes_idx,
+                          eval_acc_mask_idx,
                           train=False, metric_prefix="val_")
 
     desc = f"MajorVal epoch {epoch + 1}/{config.num_epochs}"
     eval_major_dict = run_epoch(desc, model, eval_major_loader,
-                                eval_major_classes_idx,
+                                eval_major_acc_mask_idx,
                                 train=False,  metric_prefix="major_")
 
     desc = f"MinorVal epoch {epoch + 1}/{config.num_epochs}"
     eval_minor_dict = run_epoch(desc, model, eval_minor_loader,
-                                eval_minor_classes_idx,
+                                eval_minor_acc_mask_idx,
                                 train=False, metric_prefix="minor_")
 
     current_metric.update(

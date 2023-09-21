@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 from torchvision.models import resnet18
 from torch import Tensor
-from typing import Dict
+from typing import Dict, List
 from collections import OrderedDict
 from sparsemax import Sparsemax
 
@@ -150,14 +150,14 @@ class BasicTextEncoder(nn.Module):
         self.text_embeds = nn.Parameter(text_embeds, requires_grad=False)
         self.linear = nn.Linear(text_embeds.size(1), output_dim)
 
-    def forward(self) -> Tensor:
+    def forward(self, classes_idx: List) -> Tensor:
         """
         Linearly transform the fixed text embeddings to the specified dimension.
 
         Returns:
             Tensor: The transformed text embeddings.
         """
-        return self.linear(self.text_embeds)
+        return self.linear(self.text_embeds[classes_idx, :])
 
 
 class OriTextQuantResNet18(nn.Module):
@@ -209,7 +209,7 @@ class OriTextQuantResNet18(nn.Module):
         nn.init.xavier_uniform_(self.image_projection)
         nn.init.xavier_uniform_(self.text_projection)
 
-    def forward(self, x: Tensor) -> Dict[str, Tensor]:
+    def forward(self, x: Tensor, classes_idx: List) -> Dict[str, Tensor]:
         x = self.backbone(x)
         x = x.view(x.size(0), -1)  # 512-dimensional vector for ResNet18
         image_dict = self.image_cq(x)
@@ -220,13 +220,13 @@ class OriTextQuantResNet18(nn.Module):
         image_embeds = image_embeds / image_embeds.norm(dim=1, keepdim=True)
 
         text_embeds = torch.matmul(
-            self.text_post_layernorm(self.text_encoder()),
+            self.text_post_layernorm(self.text_encoder(classes_idx)),
             self.text_projection
         )
         text_embeds = text_embeds / text_embeds.norm(dim=1, keepdim=True)
 
         # The shape of output is B * K,
-        # where K represents num_classes.
+        # where K = len(classes_idx).
         logit_scale = self.logit_scale.exp()
         outputs = torch.matmul(
             image_embeds, text_embeds.t()

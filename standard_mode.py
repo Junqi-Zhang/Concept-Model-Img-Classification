@@ -280,8 +280,8 @@ sparsity_controller = PIController(
 
 def compute_loss(returned_dict, targets, train=False):
     outputs = returned_dict["outputs"]
-    attention_weights = returned_dict["attention_weights"]
-    concept_similarity = returned_dict["concept_similarity"]
+    attention_weights = returned_dict.get("attention_weights", None)
+    concept_similarity = returned_dict.get("concept_similarity", None)
 
     def normalize_rows(input_tensor, epsilon=1e-10):
         input_tensor = input_tensor.to(torch.float)
@@ -299,6 +299,13 @@ def compute_loss(returned_dict, targets, train=False):
         outputs.t(), normalize_rows(F.one_hot(targets, num_classes).t())
     )  # K * B
     loss_classification = (loss_cls_per_img + loss_img_per_cls) / 2.0
+
+    if (attention_weights is None) and (concept_similarity is None):
+        loss_sparsity = torch.tensor(0.0)
+        loss_diversity = torch.tensor(0.0)
+        loss = loss_classification + config.loss_sparsity_weight * \
+            loss_sparsity + config.loss_diversity_weight * loss_diversity
+        return loss, loss_cls_per_img, loss_img_per_cls, loss_sparsity, loss_diversity
 
     loss_sparsity = capped_lp_norm_hinge(
         attention_weights,
@@ -408,13 +415,18 @@ def run_epoch(desc, model, dataloader, acc_mask_idx, train=False, metric_prefix=
                 acc_subset = (torch.argmax(returned_dict["outputs"].data * mask,
                                            1) == targets).sum() / targets.size(0)
 
-                attended_concepts_count = torch.sum(
-                    (returned_dict["attention_weights"].data - 1e-7) > 0,
-                    dim=1
-                ).type(torch.float)
-                s10 = torch.quantile(attended_concepts_count, 0.10)
-                s50 = torch.quantile(attended_concepts_count, 0.50)
-                s90 = torch.quantile(attended_concepts_count, 0.90)
+                if returned_dict.get("attention_weights", None) is not None:
+                    attended_concepts_count = torch.sum(
+                        (returned_dict.get("attention_weights").data - 1e-7) > 0,
+                        dim=1
+                    ).type(torch.float)
+                    s10 = torch.quantile(attended_concepts_count, 0.10).item()
+                    s50 = torch.quantile(attended_concepts_count, 0.50).item()
+                    s90 = torch.quantile(attended_concepts_count, 0.90).item()
+                else:
+                    s10 = -1
+                    s50 = -1
+                    s90 = -1
 
             def update_metric_dict(key, value, average=True):
                 if average:
@@ -436,9 +448,9 @@ def run_epoch(desc, model, dataloader, acc_mask_idx, train=False, metric_prefix=
             update_metric_dict(
                 "loss_sps_w", config.loss_sparsity_weight, average=False
             )
-            update_metric_dict("s10", s10.item())
-            update_metric_dict("s50", s50.item())
-            update_metric_dict("s90", s90.item())
+            update_metric_dict("s10", s10)
+            update_metric_dict("s50", s50)
+            update_metric_dict("s90", s90)
 
             pbar.set_postfix(metric_dict)
             pbar.update(1)

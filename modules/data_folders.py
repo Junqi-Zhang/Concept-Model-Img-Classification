@@ -57,27 +57,6 @@ CALTECH_256 = create_dataset_dict(
     splits=["train", "val"],
     subfolders=False
 )
-SAMPLED_IMAGENET_VAL = create_dataset_dict(
-    num_classes=250,
-    base_folder="Sampled_ImageNet_Val",
-    splits=["train", "val"],
-    subfolders=False
-)
-SAMPLED_IMAGENET = create_dataset_dict(
-    num_classes=250,
-    base_folder="Sampled_ImageNet",
-    splits=["train", "val", "major_val", "minor_val"]
-)
-SAMPLED_IMAGENET_200X1000_50X100_SEED_6 = create_dataset_dict(
-    num_classes=250,
-    base_folder="Sampled_ImageNet_200x1000_50x100_Seed_6",
-    splits=["train", "val", "major_val", "minor_val"]
-)
-SAMPLED_IMAGENET_200X1000_200X25_SEED_6 = create_dataset_dict(
-    num_classes=400,
-    base_folder="Sampled_ImageNet_200x1000_200x25_Seed_6",
-    splits=["train", "val", "major_val", "minor_val"]
-)
 SAMPLED_IMAGENET_500X1000_200X5_SEED_6 = create_dataset_dict(
     num_classes=700,
     base_folder="Sampled_ImageNet_500x1000_200x5_Seed_6",
@@ -88,16 +67,37 @@ SAMPLED_IMAGENET_500X1000_500X5_SEED_6 = create_dataset_dict(
     base_folder="Sampled_ImageNet_500x1000_500x5_Seed_6",
     splits=["train", "val", "major_val", "minor_val"]
 )
+SAMPLED_IMAGENET_500X1000_200X0_SEED_6 = create_dataset_dict(
+    num_classes=700,
+    base_folder="Sampled_ImageNet_500x1000_200x0_Seed_6",
+    splits=["train", "val", "major_val", "minor_val"]
+)
+SAMPLED_IMAGENET_500X1000_200X0_SEED_8 = create_dataset_dict(
+    num_classes=700,
+    base_folder="Sampled_ImageNet_500x1000_200x0_Seed_8",
+    splits=["train", "val", "major_val", "minor_val"]
+)
+SAMPLED_IMAGENET_800X500_200X0_SEED_6 = create_dataset_dict(
+    num_classes=1000,
+    base_folder="Sampled_ImageNet_800x500_200x0_Seed_6",
+    splits=["train", "val", "major_val", "minor_val"]
+)
+SAMPLED_IMAGENET_800X500_200X0_SEED_8 = create_dataset_dict(
+    num_classes=1000,
+    base_folder="Sampled_ImageNet_800x500_200x0_Seed_8",
+    splits=["train", "val", "major_val", "minor_val"]
+)
+
 
 # Create an ordered dictionary of provided datasets
 PROVIDED_DATASETS = OrderedDict(
     {
         "Caltech-256": CALTECH_256,
-        "Sampled_ImageNet_Val": SAMPLED_IMAGENET_VAL,
-        "Sampled_ImageNet": SAMPLED_IMAGENET,
-        "Sampled_ImageNet_200x1000_50x100_Seed_6": SAMPLED_IMAGENET_200X1000_50X100_SEED_6,
-        "Sampled_ImageNet_200x1000_200x25_Seed_6": SAMPLED_IMAGENET_200X1000_200X25_SEED_6,
         "Sampled_ImageNet_500x1000_200x5_Seed_6": SAMPLED_IMAGENET_500X1000_200X5_SEED_6,
         "Sampled_ImageNet_500x1000_500x5_Seed_6": SAMPLED_IMAGENET_500X1000_500X5_SEED_6,
+        "Sampled_ImageNet_500x1000_200x0_Seed_6": SAMPLED_IMAGENET_500X1000_200X0_SEED_6,
+        "Sampled_ImageNet_500x1000_200x0_Seed_8": SAMPLED_IMAGENET_500X1000_200X0_SEED_8,
+        "Sampled_ImageNet_800x500_200x0_Seed_6": SAMPLED_IMAGENET_800X500_200X0_SEED_6,
+        "Sampled_ImageNet_800x500_200x0_Seed_8": SAMPLED_IMAGENET_800X500_200X0_SEED_8,
     }
 )

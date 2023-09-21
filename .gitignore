@@ -1,6 +1,7 @@
 **/__pycache__/
 
 /data/
+/pre-trained/
 /logs/
 /checkpoints/
 /concept_images/

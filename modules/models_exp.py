@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torchvision.models import resnet18
+from torchvision.models import resnet18, resnet50
 from torch import Tensor
 from typing import Dict, List
 from collections import OrderedDict
@@ -474,10 +474,80 @@ class OriTextResNet18(nn.Module):
         }
 
 
+class OriTextResNet50(nn.Module):
+    def __init__(
+        self,
+        concept_dim: int,
+        text_embeds: Tensor,
+        *args,
+        **kwargs
+    ):
+        super(OriTextResNet50, self).__init__()
+
+        img_classifier = resnet50(
+            weights=None, num_classes=text_embeds.size(0)
+        )
+        self.backbone = nn.Sequential(*list(img_classifier.children())[:-1])
+        self.fc = nn.Linear(2048, concept_dim)
+
+        self.image_post_layernorm = nn.LayerNorm(concept_dim)
+        self.image_projection = nn.Parameter(
+            torch.Tensor(concept_dim, concept_dim)
+        )  # D * D
+
+        self.text_encoder = BasicTextEncoder(
+            text_embeds=text_embeds,
+            output_dim=concept_dim
+        )
+        self.text_post_layernorm = nn.LayerNorm(concept_dim)
+        self.text_projection = nn.Parameter(
+            torch.Tensor(concept_dim, concept_dim)
+        )  # D * D
+
+        # Scaler
+        self.logit_scale = nn.Parameter(torch.tensor(0.0))
+
+        # Parameter initialization
+        self.init_parameters()
+
+    def init_parameters(self) -> None:
+        # Initialize the mapping matrix from image/text space to image-text joint space
+        nn.init.xavier_uniform_(self.image_projection)
+        nn.init.xavier_uniform_(self.text_projection)
+
+    def forward(self, x: Tensor, classes_idx: List) -> Dict[str, Tensor]:
+        x = self.backbone(x)
+        x = x.view(x.size(0), -1)
+        x = self.fc(x)
+        image_embeds = torch.matmul(
+            self.image_post_layernorm(x),
+            self.image_projection
+        )
+        image_embeds = image_embeds / image_embeds.norm(dim=1, keepdim=True)
+
+        text_embeds = torch.matmul(
+            self.text_post_layernorm(self.text_encoder(classes_idx)),
+            self.text_projection
+        )
+        text_embeds = text_embeds / text_embeds.norm(dim=1, keepdim=True)
+
+        # The shape of output is B * K,
+        # where K = len(classes_idx).
+        logit_scale = self.logit_scale.exp()
+        outputs = torch.matmul(
+            image_embeds, text_embeds.t()
+        ) * logit_scale  # B * K
+
+        return {
+            "outputs": outputs
+        }
+
+
 MODELS_EXP = OrderedDict(
     {
         "OriTextQuantResNet18": OriTextQuantResNet18,
         "OriTextSoftQuantResNet18": OriTextSoftQuantResNet18,
         "OriTextResNet18": OriTextResNet18,
+        "OriTextResNet50": OriTextResNet50,
     }
 )

@@ -667,6 +667,156 @@ class OriTextQuantModifiedResNet18(nn.Module):
         }
 
 
+class OriTextQuantModifiedResNet18BUG(nn.Module):
+    def __init__(
+        self,
+        num_concepts: int,
+        norm_concepts: bool,
+        concept_dim: int,
+        smoothing: float,
+        text_embeds: Tensor,
+        *args,
+        **kwargs
+    ):
+        super(OriTextQuantModifiedResNet18BUG, self).__init__()
+
+        self.backbone = resnet18(
+            weights=None, num_classes=text_embeds.size(0)
+        )
+        self.backbone.avgpool = AttentionPool2d(
+            spacial_dim=7,
+            embed_dim=concept_dim,
+            num_heads=32
+        )
+        self.backbone.fc = nn.Identity()
+
+        self.image_cq = SmoothConceptQuantization(
+            input_dim=concept_dim,
+            num_concepts=num_concepts,
+            norm_concepts=norm_concepts,
+            smoothing=smoothing
+        )
+
+        self.text_encoder = BasicTextEncoder(
+            text_embeds=text_embeds,
+            output_dim=concept_dim
+        )
+        self.text_post_layernorm = nn.LayerNorm(concept_dim)
+        self.text_projection = nn.Parameter(
+            torch.Tensor(concept_dim, concept_dim)
+        )  # D * D
+
+        # Scaler
+        self.logit_scale = nn.Parameter(torch.tensor(0.0))
+
+        # Parameter initialization
+        self.init_parameters()
+
+    def init_parameters(self) -> None:
+        # Initialize the mapping matrix from image/text space to image-text joint space
+        nn.init.xavier_uniform_(self.text_projection)
+
+    def forward(self, x: Tensor, classes_idx: List) -> Dict[str, Tensor]:
+        x = self.backbone(x)
+        image_dict = self.image_cq(x)
+        image_embeds = image_dict["concept_summary"]
+
+        text_embeds = torch.matmul(
+            self.text_post_layernorm(self.text_encoder(classes_idx)),
+            self.text_projection
+        )
+        text_embeds = text_embeds / text_embeds.norm(dim=1, keepdim=True)
+
+        # The shape of output is B * K,
+        # where K = len(classes_idx).
+        logit_scale = self.logit_scale.exp()
+        outputs = torch.matmul(
+            image_embeds, text_embeds.t()
+        ) * logit_scale  # B * K
+
+        return {
+            "outputs": outputs,
+            "attention_weights": image_dict["attention_weights"],
+            "concept_similarity": image_dict["concept_similarity"]
+        }
+
+
+class OriTextQuantModifiedResNet18BUG2(nn.Module):
+    def __init__(
+        self,
+        num_concepts: int,
+        norm_concepts: bool,
+        concept_dim: int,
+        smoothing: float,
+        text_embeds: Tensor,
+        *args,
+        **kwargs
+    ):
+        super(OriTextQuantModifiedResNet18BUG2, self).__init__()
+
+        self.backbone = resnet18(
+            weights=None, num_classes=text_embeds.size(0)
+        )
+        self.backbone.avgpool = AttentionPool2d(
+            spacial_dim=7,
+            embed_dim=concept_dim,
+            num_heads=32
+        )
+        self.backbone.fc = nn.Identity()
+
+        self.image_cq = SmoothConceptQuantization(
+            input_dim=concept_dim,
+            num_concepts=num_concepts,
+            norm_concepts=norm_concepts,
+            smoothing=smoothing
+        )
+        
+        self.image_post_layernorm = nn.LayerNorm(concept_dim)
+
+        self.text_encoder = BasicTextEncoder(
+            text_embeds=text_embeds,
+            output_dim=concept_dim
+        )
+        self.text_post_layernorm = nn.LayerNorm(concept_dim)
+        self.text_projection = nn.Parameter(
+            torch.Tensor(concept_dim, concept_dim)
+        )  # D * D
+
+        # Scaler
+        self.logit_scale = nn.Parameter(torch.tensor(0.0))
+
+        # Parameter initialization
+        self.init_parameters()
+
+    def init_parameters(self) -> None:
+        # Initialize the mapping matrix from image/text space to image-text joint space
+        nn.init.xavier_uniform_(self.text_projection)
+
+    def forward(self, x: Tensor, classes_idx: List) -> Dict[str, Tensor]:
+        x = self.backbone(x)
+        image_dict = self.image_cq(x)
+        image_embeds = self.image_post_layernorm(image_dict["concept_summary"])
+
+        text_embeds = torch.matmul(
+            self.text_post_layernorm(self.text_encoder(classes_idx)),
+            self.text_projection
+        )
+        text_embeds = text_embeds / text_embeds.norm(dim=1, keepdim=True)
+
+        # The shape of output is B * K,
+        # where K = len(classes_idx).
+        logit_scale = self.logit_scale.exp()
+        outputs = torch.matmul(
+            image_embeds, text_embeds.t()
+        ) * logit_scale  # B * K
+
+        return {
+            "outputs": outputs,
+            "attention_weights": image_dict["attention_weights"],
+            "concept_similarity": image_dict["concept_similarity"]
+        }
+
+
 class OriTextResNet50(nn.Module):
     def __init__(
         self,
@@ -743,6 +893,8 @@ MODELS_EXP = OrderedDict(
         "OriTextResNet18": OriTextResNet18,
         "OriTextModifiedResNet18": OriTextModifiedResNet18,
         "OriTextQuantModifiedResNet18": OriTextQuantModifiedResNet18,
+        "OriTextQuantModifiedResNet18BUG": OriTextQuantModifiedResNet18BUG,
+        "OriTextQuantModifiedResNet18BUG2": OriTextQuantModifiedResNet18BUG2,
         "OriTextResNet50": OriTextResNet50,
     }
 )

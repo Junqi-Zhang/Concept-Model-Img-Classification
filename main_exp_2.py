@@ -15,11 +15,11 @@ parser.add_argument("--gpus", default=[0], type=int, nargs="*")
 
 seed_task_elements = {
     "mode": "standard",
-    "dataset_name": "Sampled_ImageNet_500x1000_200x0_Seed_6",
+    "dataset_name": "Sampled_ImageNet_800x500_200x0_Seed_6",
     # "warmup_model": "",
     # "warmup_checkpoint_path": "",
     "text_embeds_path": "pre-trained/imagenet_zeroshot_simple_classifier.pt",
-    "use_model": "OriTextResNet18",
+    "use_model": "OriTextModifiedResNet18",
     "num_concepts": 500,
     "num_attended_concepts": 100,
     "norm_concepts": False,
@@ -49,7 +49,7 @@ def generate_tasks(seed_task_elements, parallel, gpus):
 
     # task 2
     new_task_element = seed_task_elements.copy()
-    new_task_element["dataset_name"] = "Sampled_ImageNet_500x1000_200x0_Seed_8"
+    new_task_element["dataset_name"] = "Sampled_ImageNet_800x500_200x0_Seed_8"
     tasks.append(new_task_element)
 
     # # task 3

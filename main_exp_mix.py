@@ -15,20 +15,21 @@ parser.add_argument("--gpus", default=[0], type=int, nargs="*")
 
 seed_task_elements = {
     "mode": "standard",
-    "dataset_name": "Sampled_ImageNet_200x1000_200x25_Seed_6",
+    "dataset_name": "Sampled_ImageNet_500x1000_200x0_Seed_6",
     # "warmup_model": "",
     # "warmup_checkpoint_path": "",
-    "use_model": "BasicQuantResNet18V4",
-    "num_concepts": 250,
-    "num_attended_concepts": 50,
+    "text_embeds_path": "pre-trained/imagenet_zeroshot_simple_classifier.pt",
+    "use_model": "OriTextQuantResNet18",
+    "num_concepts": 500,
+    "num_attended_concepts": 100,
     "norm_concepts": False,
     "norm_summary": True,
     "grad_factor": 1,
     "att_smoothing": 0.0,
-    "loss_sparsity_weight": 0.0,
+    "loss_sparsity_weight": 0,
     "loss_sparsity_adaptive": False,
     "loss_diversity_weight": 1.0,
-    "supplementary_description": "Check Rebuilt Code",
+    "supplementary_description": "Test on zero-shot dataset",
     "num_epochs": 1000,
     "warmup_epochs": 10,
     "batch_size": 125,
@@ -44,51 +45,51 @@ def generate_tasks(seed_task_elements, parallel, gpus):
 
     # gpu 0
     new_task_element = seed_task_elements.copy()
-    new_task_element["num_concepts"] = 50
+    new_task_element["dataset_name"] = "Sampled_ImageNet_500x1000_200x0_Seed_8"
     tasks.append(new_task_element)
 
-    # gpu 1
-    new_task_element = seed_task_elements.copy()
-    new_task_element["num_concepts"] = 250
-    tasks.append(new_task_element)
+    # # gpu 1
+    # new_task_element = seed_task_elements.copy()
+    # new_task_element["num_concepts"] = 250
+    # tasks.append(new_task_element)
 
-    # gpu 2
-    new_task_element = seed_task_elements.copy()
-    new_task_element["num_concepts"] = 500
-    tasks.append(new_task_element)
+    # # gpu 2
+    # new_task_element = seed_task_elements.copy()
+    # new_task_element["num_concepts"] = 500
+    # tasks.append(new_task_element)
 
-    # gpu 3
-    new_task_element = seed_task_elements.copy()
-    new_task_element["num_concepts"] = 1000
-    tasks.append(new_task_element)
+    # # gpu 3
+    # new_task_element = seed_task_elements.copy()
+    # new_task_element["num_concepts"] = 1000
+    # tasks.append(new_task_element)
 
-    # gpu 4
-    new_task_element = seed_task_elements.copy()
-    new_task_element["use_model"] = "BasicQuantResNet18V4Smooth"
-    new_task_element["num_concepts"] = 50
-    new_task_element["att_smoothing"] = 0.2
-    tasks.append(new_task_element)
+    # # gpu 4
+    # new_task_element = seed_task_elements.copy()
+    # new_task_element["use_model"] = "BasicQuantResNet18V4Smooth"
+    # new_task_element["num_concepts"] = 50
+    # new_task_element["att_smoothing"] = 0.2
+    # tasks.append(new_task_element)
 
-    # gpu 5
-    new_task_element = seed_task_elements.copy()
-    new_task_element["use_model"] = "BasicQuantResNet18V4Smooth"
-    new_task_element["num_concepts"] = 250
-    new_task_element["att_smoothing"] = 0.2
-    tasks.append(new_task_element)
+    # # gpu 5
+    # new_task_element = seed_task_elements.copy()
+    # new_task_element["use_model"] = "BasicQuantResNet18V4Smooth"
+    # new_task_element["num_concepts"] = 250
+    # new_task_element["att_smoothing"] = 0.2
+    # tasks.append(new_task_element)
 
-    # gpu 6
-    new_task_element = seed_task_elements.copy()
-    new_task_element["use_model"] = "BasicQuantResNet18V4Smooth"
-    new_task_element["num_concepts"] = 500
-    new_task_element["att_smoothing"] = 0.2
-    tasks.append(new_task_element)
+    # # gpu 6
+    # new_task_element = seed_task_elements.copy()
+    # new_task_element["use_model"] = "BasicQuantResNet18V4Smooth"
+    # new_task_element["num_concepts"] = 500
+    # new_task_element["att_smoothing"] = 0.2
+    # tasks.append(new_task_element)
 
-    # gpu 7
-    new_task_element = seed_task_elements.copy()
-    new_task_element["use_model"] = "BasicQuantResNet18V4Smooth"
-    new_task_element["num_concepts"] = 1000
-    new_task_element["att_smoothing"] = 0.2
-    tasks.append(new_task_element)
+    # # gpu 7
+    # new_task_element = seed_task_elements.copy()
+    # new_task_element["use_model"] = "BasicQuantResNet18V4Smooth"
+    # new_task_element["num_concepts"] = 1000
+    # new_task_element["att_smoothing"] = 0.2
+    # tasks.append(new_task_element)
 
     if parallel:
         num_gpus = len(gpus)

@@ -40,10 +40,16 @@ parser.add_argument("--warmup_checkpoint_path", default="", type=str)
 parser.add_argument("--text_embeds_path", default="", type=str)
 parser.add_argument("--use_model", required=True, type=str)
 parser.add_argument("--att_smoothing", default=0.0, type=float)
+parser.add_argument("--spacial_dim", default=7, type=int)
+parser.add_argument("--embed_dim", default=512, type=int)
 parser.add_argument("--num_concepts", default=512, type=int)
 parser.add_argument("--num_attended_concepts", default=50, type=int)
 parser.add_argument("--norm_concepts", default="False")
 parser.add_argument("--concept_dim", default=512, type=int)
+parser.add_argument("--concept_attn_head", default=8, type=int)
+parser.add_argument("--concept_attn_max_fn", default="softmax", type=str)
+parser.add_argument("--patch_attn_head", default=8, type=int)
+parser.add_argument("--patch_attn_max_fn", default="softmax", type=str)
 parser.add_argument("--norm_summary", default="False")
 parser.add_argument("--grad_factor", default=1.0, type=float)
 # loss
@@ -247,6 +253,7 @@ model_parameters = dict(
         "norm_summary": config.norm_summary,
         "grad_factor": config.grad_factor,
         "smoothing": config.att_smoothing,
+        "config": config,
         "text_embeds": torch.load(config.text_embeds_path).t()
     }
 )

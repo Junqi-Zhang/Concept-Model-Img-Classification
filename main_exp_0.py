@@ -15,11 +15,15 @@ parser.add_argument("--gpus", default=[0], type=int, nargs="*")
 
 seed_task_elements = {
     "mode": "standard",
-    "dataset_name": "Sampled_ImageNet_500x1000_200x0_Seed_6",
+    "dataset_name": "Sampled_ImageNet_800x500_200x0_Seed_6",
     # "warmup_model": "",
     # "warmup_checkpoint_path": "",
     "text_embeds_path": "pre-trained/imagenet_zeroshot_simple_classifier.pt",
-    "use_model": "OriTextQuantResNet18",
+    "use_model": "OriTextCQPoolResNet18",
+    "concept_attn_head": 1,
+    "concept_attn_max_fn": "softmax",
+    "patch_attn_head": 1,
+    "patch_attn_max_fn": "softmax",
     "num_concepts": 500,
     "num_attended_concepts": 100,
     "norm_concepts": False,
@@ -29,7 +33,7 @@ seed_task_elements = {
     "loss_sparsity_weight": 0,
     "loss_sparsity_adaptive": False,
     "loss_diversity_weight": 1.0,
-    "supplementary_description": "Test on zero-shot dataset",
+    "supplementary_description": "Test OriTextCQPoolResNet18 on zero-shot dataset",
     "num_epochs": 1000,
     "warmup_epochs": 10,
     "batch_size": 125,
@@ -47,10 +51,10 @@ def generate_tasks(seed_task_elements, parallel, gpus):
     new_task_element = seed_task_elements.copy()
     tasks.append(new_task_element)
 
-    # # task 2
-    # new_task_element = seed_task_elements.copy()
-    # new_task_element["att_smoothing"] = 0.3
-    # tasks.append(new_task_element)
+    # task 2
+    new_task_element = seed_task_elements.copy()
+    new_task_element["dataset_name"] = "Sampled_ImageNet_800x500_200x0_Seed_8"
+    tasks.append(new_task_element)
 
     # # task 3
     # new_task_element = seed_task_elements.copy()

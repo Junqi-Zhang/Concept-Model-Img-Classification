@@ -770,7 +770,7 @@ class OriTextQuantModifiedResNet18BUG2(nn.Module):
             norm_concepts=norm_concepts,
             smoothing=smoothing
         )
-        
+
         self.image_post_layernorm = nn.LayerNorm(concept_dim)
 
         self.text_encoder = BasicTextEncoder(
@@ -886,6 +886,222 @@ class OriTextResNet50(nn.Module):
         }
 
 
+# layers
+def get_activation_function(activation_fn, dim=-1):
+    if activation_fn == 'softmax':
+        return nn.Softmax(dim=dim)
+    elif activation_fn == 'sparsemax':
+        return Sparsemax(dim=dim)
+    elif activation_fn == 'gumbel':
+        return GumbelSoftmax(dim=dim)
+    else:
+        raise ValueError(
+            f"Activation function {activation_fn} not implemented."
+        )
+
+
+class GumbelSoftmax(nn.Module):
+    def __init__(self, hard=False, eps=1e-10, dim=-1):
+        super(GumbelSoftmax, self).__init__()
+        self.temperature = nn.Parameter(torch.tensor(0.0))
+        self.tau = 1.0
+        self.hard = hard
+        self.eps = eps
+        self.dim = dim
+
+    def forward(self, logits):
+        if self.training:
+            return F.gumbel_softmax(logits * self.temperature.exp(), tau=self.tau, hard=self.hard, eps=self.eps, dim=self.dim)
+        else:
+            index = logits.max(self.dim, keepdim=True)[1]
+            logits_hard = torch.zeros_like(
+                logits, memory_format=torch.legacy_contiguous_format).scatter_(self.dim, index, 1.0)
+        return logits_hard
+
+
+class ModifiedMultiHeadAttention(nn.Module):
+    def __init__(self, d_model, n_head, max_fn):
+        super(ModifiedMultiHeadAttention, self).__init__()
+
+        assert d_model % n_head == 0
+        self.d_model = d_model
+        self.n_head = n_head
+        self.d_k = d_model // n_head
+
+        self.q_linear = nn.Linear(d_model, d_model)
+        self.k_linear = nn.Linear(d_model, d_model)
+
+        self.max_transform = get_activation_function(max_fn)
+
+    def forward(self, q, k, v):
+        # q: [B, L, D]
+        # k: [B, L, D]
+        # v: [B, L, D]
+        q = self.q_linear(q).view(
+            q.size(0), -1, self.n_head, self.d_k
+        ).transpose(1, 2)
+        k = self.k_linear(k).view(
+            k.size(0), -1, self.n_head, self.d_k
+        ).transpose(1, 2)
+        v = v.unsqueeze(1)
+
+        attn = torch.matmul(q, k.transpose(-2, -1)) / (self.d_k ** 0.5)
+        attn = self.max_transform(attn)
+
+        output = torch.matmul(attn, v)
+
+        output = output.mean(dim=1)
+        attn = attn.mean(dim=1)
+
+        return output, attn
+
+
+class ConceptQuantizationPool2d(nn.Module):
+    def __init__(self, config):
+        super(ConceptQuantizationPool2d, self).__init__()
+
+        # gather hyper-parameters
+        spacial_dim = config.spacial_dim
+        input_dim = config.embed_dim
+        num_concepts = config.num_concepts
+
+        self.spacial_dim = spacial_dim
+        self.input_dim = input_dim
+        self.num_concepts = num_concepts
+
+        # Parameters
+        self.positional_embedding = nn.Parameter(
+            torch.Tensor(spacial_dim ** 2 + 1, input_dim))
+        self.concepts = nn.Parameter(torch.Tensor(num_concepts, input_dim))
+
+        # multi-head attention
+        self.concept_attn_layer = ModifiedMultiHeadAttention(
+            input_dim, config.concept_attn_head, config.concept_attn_max_fn)
+        self.image_attn_layer = ModifiedMultiHeadAttention(
+            input_dim, config.patch_attn_head, config.patch_attn_max_fn)
+
+        # initialization
+        self.init_parameters()
+
+    def init_parameters(self):
+        nn.init.xavier_uniform_(self.positional_embedding)
+        nn.init.xavier_uniform_(self.concepts)
+
+    def forward(self, inputs):
+        positional_embedding = self.positional_embedding.unsqueeze(0)
+        concepts = self.concepts.unsqueeze(0)
+
+        # reshape input
+        inputs = inputs.flatten(start_dim=2).permute(0, 2, 1)  # NCHW -> N(HW)C
+        inputs = torch.cat(
+            [inputs.mean(dim=1, keepdim=True), inputs], dim=1
+        )  # N(HW+1)C
+
+        # concept attention
+        patch_concept, concept_attn = self.concept_attn_layer(
+            inputs, concepts, concepts
+        )
+
+        # image attention
+        inputs = inputs + positional_embedding
+        # patch_concept = patch_concept + positional_embedding
+        concept_summary, image_attn = self.image_attn_layer(
+            inputs[:, :1], inputs, patch_concept
+        )
+
+        # summarize the results
+        concept_summary = concept_summary.squeeze()
+        summarized_attn = torch.matmul(image_attn, concept_attn).squeeze()
+        image_attn = image_attn.squeeze()
+
+        # compute concept similarity
+        normalized_concepts = concepts.squeeze() / \
+            concepts.squeeze().norm(p=2, dim=-1, keepdim=True)
+        concept_similarity = torch.matmul(
+            normalized_concepts, normalized_concepts.t())
+
+        # output results
+        return {
+            "concept_summary": concept_summary,
+            "attention_weights": summarized_attn,
+            "concept_similarity": concept_similarity,
+            "patch_attention": image_attn,
+            "concept_attention": concept_attn,
+        }
+
+
+class OriTextCQPoolResNet18(nn.Module):
+    def __init__(
+        self,
+        text_embeds: Tensor,
+        config,
+        *args,
+        **kwargs
+    ):
+        super(OriTextCQPoolResNet18, self).__init__()
+
+        img_classifier = resnet18(
+            weights=None, num_classes=text_embeds.size(0)
+        )
+        self.backbone = nn.Sequential(*list(img_classifier.children())[:-2])
+
+        self.image_cq = ConceptQuantizationPool2d(config=config)
+        self.image_post_layernorm = nn.LayerNorm(config.concept_dim)
+        self.image_projection = nn.Parameter(
+            torch.Tensor(config.concept_dim, config.concept_dim)
+        )  # D * D
+
+        self.text_encoder = BasicTextEncoder(
+            text_embeds=text_embeds,
+            output_dim=config.concept_dim
+        )
+        self.text_post_layernorm = nn.LayerNorm(config.concept_dim)
+        self.text_projection = nn.Parameter(
+            torch.Tensor(config.concept_dim, config.concept_dim)
+        )  # D * D
+
+        # Scaler
+        self.logit_scale = nn.Parameter(torch.tensor(0.0))
+
+        # Parameter initialization
+        self.init_parameters()
+
+    def init_parameters(self) -> None:
+        # Initialize the mapping matrix from image/text space to image-text joint space
+        nn.init.xavier_uniform_(self.image_projection)
+        nn.init.xavier_uniform_(self.text_projection)
+
+    def forward(self, x: Tensor, classes_idx: List) -> Dict[str, Tensor]:
+        x = self.backbone(x)
+        image_dict = self.image_cq(x)
+        image_embeds = torch.matmul(
+            self.image_post_layernorm(image_dict["concept_summary"]),
+            self.image_projection
+        )
+        image_embeds = image_embeds / image_embeds.norm(dim=1, keepdim=True)
+
+        text_embeds = torch.matmul(
+            self.text_post_layernorm(self.text_encoder(classes_idx)),
+            self.text_projection
+        )
+        text_embeds = text_embeds / text_embeds.norm(dim=1, keepdim=True)
+
+        # The shape of output is B * K,
+        # where K = len(classes_idx).
+        logit_scale = self.logit_scale.exp()
+        outputs = torch.matmul(
+            image_embeds, text_embeds.t()
+        ) * logit_scale  # B * K
+
+        return {
+            "outputs": outputs,
+            "attention_weights": image_dict["attention_weights"],
+            "concept_similarity": image_dict["concept_similarity"],
+            "patch_attention": image_dict["patch_attention"],
+            "concept_attention": image_dict["concept_attention"]
+        }
+
+
 MODELS_EXP = OrderedDict(
     {
         "OriTextQuantResNet18": OriTextQuantResNet18,
@@ -895,6 +1111,7 @@ MODELS_EXP = OrderedDict(
         "OriTextQuantModifiedResNet18": OriTextQuantModifiedResNet18,
         "OriTextQuantModifiedResNet18BUG": OriTextQuantModifiedResNet18BUG,
         "OriTextQuantModifiedResNet18BUG2": OriTextQuantModifiedResNet18BUG2,
+        "OriTextCQPoolResNet18": OriTextCQPoolResNet18,
         "OriTextResNet50": OriTextResNet50,
     }
 )

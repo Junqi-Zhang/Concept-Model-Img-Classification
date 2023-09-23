@@ -558,15 +558,15 @@ for epoch in range(config.num_epochs):
         "epoch",
         f"{current_metric.epoch}",
         f"{current_metric.train_acc:.4f}",
-        f"{current_metric.val_acc:.4f}",
-        f"{current_metric.major_acc:.4f}",
         f"{current_metric.major_acc_subset:.4f}",
         f"{current_metric.minor_acc:.4f}",
         f"{current_metric.minor_acc_subset:.4f}",
-        f"{current_metric.train_s50:.1f}",
-        f"{current_metric.train_s90:.1f}",
-        f"{current_metric.val_s50:.1f}",
-        f"{current_metric.val_s90:.1f}",
+        f"{current_metric.train_cfi_s90:.1f}",
+        f"{current_metric.train_pfi_s90:.1f}",
+        f"{current_metric.train_cfp_s90:.1f}",
+        f"{current_metric.val_cfi_s90:.1f}",
+        f"{current_metric.val_pfi_s90:.1f}",
+        f"{current_metric.val_cfp_s90:.1f}",
         f"{current_metric.train_loss_dvs:.1f}"
     ]
     model_name = "_".join(model_name_elements) + ".pt"

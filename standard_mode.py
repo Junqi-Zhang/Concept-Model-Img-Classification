@@ -378,6 +378,7 @@ def run_epoch(desc, model, dataloader, acc_mask_idx, train=False, metric_prefix=
         model.eval()
 
     metric_dict = dict()
+    screen_dict = dict()
 
     step = 0
     with tqdm(
@@ -427,23 +428,61 @@ def run_epoch(desc, model, dataloader, acc_mask_idx, train=False, metric_prefix=
                         (returned_dict.get("attention_weights").data - 1e-7) > 0,
                         dim=1
                     ).type(torch.float)
-                    s10 = torch.quantile(attended_concepts_count, 0.10).item()
-                    s50 = torch.quantile(attended_concepts_count, 0.50).item()
-                    s90 = torch.quantile(attended_concepts_count, 0.90).item()
+                    cfi_s10 = torch.quantile(
+                        attended_concepts_count, 0.10).item()
+                    cfi_s50 = torch.quantile(
+                        attended_concepts_count, 0.50).item()
+                    cfi_s90 = torch.quantile(
+                        attended_concepts_count, 0.90).item()
                 else:
-                    s10 = -1
-                    s50 = -1
-                    s90 = -1
+                    cfi_s10 = -1
+                    cfi_s50 = -1
+                    cfi_s90 = -1
 
-            def update_metric_dict(key, value, average=True):
+                if returned_dict.get("patch_attention", None) is not None:
+                    attended_patches_count = torch.sum(
+                        (returned_dict.get("patch_attention").data - 1e-7) > 0,
+                        dim=1
+                    ).type(torch.float)
+                    pfi_s10 = torch.quantile(
+                        attended_patches_count, 0.10).item()
+                    pfi_s50 = torch.quantile(
+                        attended_patches_count, 0.50).item()
+                    pfi_s90 = torch.quantile(
+                        attended_patches_count, 0.90).item()
+                else:
+                    pfi_s10 = -1
+                    pfi_s50 = -1
+                    pfi_s90 = -1
+
+                if returned_dict.get("concept_attention", None) is not None:
+                    patch_concepts_count = torch.sum(
+                        (returned_dict.get("concept_attention").data - 1e-7) > 0,
+                        dim=2
+                    ).type(torch.float)
+                    cfp_s10 = torch.quantile(patch_concepts_count, 0.10).item()
+                    cfp_s50 = torch.quantile(patch_concepts_count, 0.50).item()
+                    cfp_s90 = torch.quantile(patch_concepts_count, 0.90).item()
+                else:
+                    cfp_s10 = -1
+                    cfp_s50 = -1
+                    cfp_s90 = -1
+
+            def update_metric_dict(key, value, average=True, verbose=True):
                 if average:
                     metric_dict[metric_prefix + key] = (
                         metric_dict.get(
                             metric_prefix + key, 0
                         ) * step + value
                     ) / (step + 1)
+                    if verbose:
+                        screen_dict[key] = (
+                            screen_dict.get(key, 0) * step + value
+                        ) / (step + 1)
                 else:
                     metric_dict[metric_prefix + key] = value
+                    if verbose:
+                        screen_dict[key] = value
 
             update_metric_dict("acc", acc.item())
             update_metric_dict("acc_subset", acc_subset.item())
@@ -455,11 +494,17 @@ def run_epoch(desc, model, dataloader, acc_mask_idx, train=False, metric_prefix=
             update_metric_dict(
                 "loss_sps_w", config.loss_sparsity_weight, average=False
             )
-            update_metric_dict("s10", s10)
-            update_metric_dict("s50", s50)
-            update_metric_dict("s90", s90)
+            update_metric_dict("cfi_s10", cfi_s10, verbose=False)
+            update_metric_dict("cfi_s50", cfi_s50, verbose=False)
+            update_metric_dict("cfi_s90", cfi_s90)
+            update_metric_dict("pfi_s10", pfi_s10, verbose=False)
+            update_metric_dict("pfi_s50", pfi_s50, verbose=False)
+            update_metric_dict("pfi_s90", pfi_s90)
+            update_metric_dict("cfp_s10", cfp_s10, verbose=False)
+            update_metric_dict("cfp_s50", cfp_s50, verbose=False)
+            update_metric_dict("cfp_s90", cfp_s90)
 
-            pbar.set_postfix(metric_dict)
+            pbar.set_postfix(screen_dict)
             pbar.update(1)
 
             step += 1

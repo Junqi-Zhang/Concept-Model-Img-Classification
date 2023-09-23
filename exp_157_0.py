@@ -20,8 +20,9 @@ seed_task_elements = {
     # "warmup_checkpoint_path": "",
     "text_embeds_path": "pre-trained/imagenet_zeroshot_simple_classifier.pt",
     "use_model": "OriTextCQPoolResNet18",
-    "concept_attn_head": 8,
-    "concept_attn_max_fn": "gumbel",
+    "expand_dim": False,
+    "concept_attn_head": 1,
+    "concept_attn_max_fn": "sparsemax",
     "patch_attn_head": 1,
     "patch_attn_max_fn": "softmax",
     "num_concepts": 500,
@@ -49,23 +50,35 @@ def generate_tasks(seed_task_elements, parallel, gpus):
 
     # task 1
     new_task_element = seed_task_elements.copy()
+    new_task_element["loss_diversity_weight"] = 0.0
+    new_task_element["expand_dim"] = True
+    new_task_element["concept_attn_head"] = 8
+    new_task_element["concept_attn_max_fn"] = "sparsemax"
     tasks.append(new_task_element)
 
     # task 2
     new_task_element = seed_task_elements.copy()
-    new_task_element["dataset_name"] = "Sampled_ImageNet_800x500_200x0_Seed_8"
+    new_task_element["loss_diversity_weight"] = 0.0
+    new_task_element["expand_dim"] = False
+    new_task_element["concept_attn_head"] = 8
+    new_task_element["concept_attn_max_fn"] = "sparsemax"
     tasks.append(new_task_element)
 
-    # # task 3
-    # new_task_element = seed_task_elements.copy()
-    # new_task_element["att_smoothing"] = 0.05
-    # tasks.append(new_task_element)
+    # task 3
+    new_task_element = seed_task_elements.copy()
+    new_task_element["loss_diversity_weight"] = 0.0
+    new_task_element["expand_dim"] = False
+    new_task_element["concept_attn_head"] = 1
+    new_task_element["concept_attn_max_fn"] = "sparsemax"
+    tasks.append(new_task_element)
 
-    # # task 4
-    # new_task_element = seed_task_elements.copy()
-    # new_task_element["att_smoothing"] = 0.4
-    # new_task_element["num_concepts"] = 500
-    # tasks.append(new_task_element)
+    # task 4
+    new_task_element = seed_task_elements.copy()
+    new_task_element["loss_diversity_weight"] = 1.0
+    new_task_element["expand_dim"] = True
+    new_task_element["concept_attn_head"] = 8
+    new_task_element["concept_attn_max_fn"] = "sparsemax"
+    tasks.append(new_task_element)
 
     if parallel:
         num_gpus = len(gpus)

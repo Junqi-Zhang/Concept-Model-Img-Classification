@@ -920,16 +920,20 @@ class GumbelSoftmax(nn.Module):
 
 
 class ModifiedMultiHeadAttention(nn.Module):
-    def __init__(self, d_model, n_head, max_fn):
+    def __init__(self, d_model, n_head, expand_dim, max_fn):
         super(ModifiedMultiHeadAttention, self).__init__()
 
         assert d_model % n_head == 0
         self.d_model = d_model
         self.n_head = n_head
-        self.d_k = d_model // n_head
-
-        self.q_linear = nn.Linear(d_model, d_model)
-        self.k_linear = nn.Linear(d_model, d_model)
+        if expand_dim:
+            self.d_k = d_model
+            self.q_linear = nn.Linear(d_model, d_model*n_head)
+            self.k_linear = nn.Linear(d_model, d_model*n_head)
+        else:
+            self.d_k = d_model // n_head
+            self.q_linear = nn.Linear(d_model, d_model)
+            self.k_linear = nn.Linear(d_model, d_model)
 
         self.max_transform = get_activation_function(max_fn)
 
@@ -976,9 +980,9 @@ class ConceptQuantizationPool2d(nn.Module):
 
         # multi-head attention
         self.concept_attn_layer = ModifiedMultiHeadAttention(
-            input_dim, config.concept_attn_head, config.concept_attn_max_fn)
+            input_dim, config.concept_attn_head, config.expand_dim, config.concept_attn_max_fn)
         self.image_attn_layer = ModifiedMultiHeadAttention(
-            input_dim, config.patch_attn_head, config.patch_attn_max_fn)
+            input_dim, config.patch_attn_head, config.expand_dim, config.patch_attn_max_fn)
 
         # initialization
         self.init_parameters()

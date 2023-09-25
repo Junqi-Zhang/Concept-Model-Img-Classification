@@ -21,7 +21,7 @@ seed_task_elements = {
     "text_embeds_path": "pre-trained/imagenet_zeroshot_simple_classifier.pt",
     "use_model": "OriTextCQPoolResNet34",
     "expand_dim": True,
-    "concept_attn_head": 1,
+    "concept_attn_head": 8,
     "concept_attn_max_fn": "sparsemax",
     "patch_attn_head": 1,
     "patch_attn_max_fn": "softmax",
@@ -52,7 +52,7 @@ def generate_tasks(seed_task_elements, parallel, gpus):
     new_task_element = seed_task_elements.copy()
     new_task_element["loss_diversity_weight"] = 0.0
     new_task_element["expand_dim"] = True
-    new_task_element["concept_attn_head"] = 1
+    new_task_element["concept_attn_head"] = 8
     new_task_element["concept_attn_max_fn"] = "sparsemax"
     tasks.append(new_task_element)
 

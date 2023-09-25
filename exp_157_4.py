@@ -19,21 +19,21 @@ seed_task_elements = {
     # "warmup_model": "",
     # "warmup_checkpoint_path": "",
     "text_embeds_path": "pre-trained/imagenet_zeroshot_simple_classifier.pt",
-    "use_model": "OriTextCQPoolResNet34",
-    "expand_dim": True,
+    "use_model": "OriTextQuantResNet34",
+    "expand_dim": False,
     "concept_attn_head": 1,
     "concept_attn_max_fn": "sparsemax",
     "patch_attn_head": 1,
-    "patch_attn_max_fn": "softmax",
+    "patch_attn_max_fn": "sparsemax",
     "num_concepts": 500,
     "num_attended_concepts": 100,
     "norm_concepts": False,
     "norm_summary": True,
     "grad_factor": 1,
-    "att_smoothing": 0.0,
+    "att_smoothing": 0.2,
     "loss_sparsity_weight": 0,
     "loss_sparsity_adaptive": False,
-    "loss_diversity_weight": 0.0,
+    "loss_diversity_weight": 1.0,
     "supplementary_description": "Test ResNet34 on zero-shot dataset",
     "num_epochs": 1000,
     "warmup_epochs": 10,
@@ -50,32 +50,24 @@ def generate_tasks(seed_task_elements, parallel, gpus):
 
     # task 1
     new_task_element = seed_task_elements.copy()
-    new_task_element["loss_diversity_weight"] = 0.0
-    new_task_element["expand_dim"] = True
-    new_task_element["concept_attn_head"] = 1
-    new_task_element["concept_attn_max_fn"] = "sparsemax"
     tasks.append(new_task_element)
 
     # # task 2
     # new_task_element = seed_task_elements.copy()
-    # new_task_element["loss_diversity_weight"] = 1.0
-    # new_task_element["expand_dim"] = True
-    # new_task_element["concept_attn_head"] = 8
-    # new_task_element["concept_attn_max_fn"] = "gumbel"
     # tasks.append(new_task_element)
 
     # # task 3
     # new_task_element = seed_task_elements.copy()
     # new_task_element["loss_diversity_weight"] = 0.0
-    # new_task_element["expand_dim"] = True
-    # new_task_element["concept_attn_head"] = 8
+    # new_task_element["expand_dim"] = False
+    # new_task_element["concept_attn_head"] = 1
     # new_task_element["concept_attn_max_fn"] = "sparsemax"
     # tasks.append(new_task_element)
 
     # # task 4
     # new_task_element = seed_task_elements.copy()
-    # new_task_element["loss_diversity_weight"] = 1.0
-    # new_task_element["expand_dim"] = True
+    # new_task_element["loss_diversity_weight"] = 0.0
+    # new_task_element["expand_dim"] = False
     # new_task_element["concept_attn_head"] = 8
     # new_task_element["concept_attn_max_fn"] = "sparsemax"
     # tasks.append(new_task_element)

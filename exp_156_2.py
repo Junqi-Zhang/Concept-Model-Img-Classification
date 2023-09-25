@@ -20,7 +20,7 @@ seed_task_elements = {
     # "warmup_checkpoint_path": "",
     "text_embeds_path": "pre-trained/imagenet_zeroshot_simple_classifier.pt",
     "use_model": "OriTextCQPoolResNet18",
-    "expand_dim": True,
+    "expand_dim": False,
     "concept_attn_head": 128,
     "concept_attn_max_fn": "gumbel",
     "patch_attn_head": 1,
@@ -51,7 +51,7 @@ def generate_tasks(seed_task_elements, parallel, gpus):
     # task 1
     new_task_element = seed_task_elements.copy()
     new_task_element["loss_diversity_weight"] = 1.0
-    new_task_element["expand_dim"] = True
+    new_task_element["expand_dim"] = False
     new_task_element["concept_attn_head"] = 128
     new_task_element["concept_attn_max_fn"] = "gumbel"
     tasks.append(new_task_element)
@@ -59,7 +59,7 @@ def generate_tasks(seed_task_elements, parallel, gpus):
     # task 2
     new_task_element = seed_task_elements.copy()
     new_task_element["loss_diversity_weight"] = 0.0
-    new_task_element["expand_dim"] = True
+    new_task_element["expand_dim"] = False
     new_task_element["concept_attn_head"] = 128
     new_task_element["concept_attn_max_fn"] = "gumbel"
     tasks.append(new_task_element)

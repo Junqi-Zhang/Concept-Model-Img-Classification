@@ -20,8 +20,9 @@ seed_task_elements = {
     # "warmup_checkpoint_path": "",
     "text_embeds_path": "pre-trained/imagenet_zeroshot_simple_classifier.pt",
     "use_model": "OriTextCQPoolResNet18",
-    "concept_attn_head": 8,
-    "concept_attn_max_fn": "sparsemax",
+    "expand_dim": False,
+    "concept_attn_head": 64,
+    "concept_attn_max_fn": "gumbel",
     "patch_attn_head": 1,
     "patch_attn_max_fn": "softmax",
     "num_concepts": 500,
@@ -32,11 +33,11 @@ seed_task_elements = {
     "att_smoothing": 0.0,
     "loss_sparsity_weight": 0,
     "loss_sparsity_adaptive": False,
-    "loss_diversity_weight": 1.0,
+    "loss_diversity_weight": 0.0,
     "supplementary_description": "Test OriTextCQPoolResNet18 on zero-shot dataset",
     "num_epochs": 1000,
     "warmup_epochs": 10,
-    "batch_size": 125,
+    "batch_size": 100,
     # "batch_size": 75,
     "learning_rate": 5e-4,
     "save_interval": 1
@@ -49,22 +50,34 @@ def generate_tasks(seed_task_elements, parallel, gpus):
 
     # task 1
     new_task_element = seed_task_elements.copy()
+    new_task_element["loss_diversity_weight"] = 1.0
+    new_task_element["expand_dim"] = False
+    new_task_element["concept_attn_head"] = 64
+    new_task_element["concept_attn_max_fn"] = "gumbel"
     tasks.append(new_task_element)
 
     # task 2
     new_task_element = seed_task_elements.copy()
-    new_task_element["dataset_name"] = "Sampled_ImageNet_800x500_200x0_Seed_8"
+    new_task_element["loss_diversity_weight"] = 0.0
+    new_task_element["expand_dim"] = False
+    new_task_element["concept_attn_head"] = 64
+    new_task_element["concept_attn_max_fn"] = "gumbel"
     tasks.append(new_task_element)
 
     # # task 3
     # new_task_element = seed_task_elements.copy()
-    # new_task_element["att_smoothing"] = 0.05
+    # new_task_element["loss_diversity_weight"] = 0.0
+    # new_task_element["expand_dim"] = True
+    # new_task_element["concept_attn_head"] = 8
+    # new_task_element["concept_attn_max_fn"] = "sparsemax"
     # tasks.append(new_task_element)
 
     # # task 4
     # new_task_element = seed_task_elements.copy()
-    # new_task_element["att_smoothing"] = 0.4
-    # new_task_element["num_concepts"] = 500
+    # new_task_element["loss_diversity_weight"] = 1.0
+    # new_task_element["expand_dim"] = True
+    # new_task_element["concept_attn_head"] = 8
+    # new_task_element["concept_attn_max_fn"] = "sparsemax"
     # tasks.append(new_task_element)
 
     if parallel:

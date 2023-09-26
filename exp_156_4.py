@@ -19,12 +19,12 @@ seed_task_elements = {
     # "warmup_model": "",
     # "warmup_checkpoint_path": "",
     "text_embeds_path": "pre-trained/imagenet_zeroshot_simple_classifier.pt",
-    "use_model": "OriTextCQPoolResNet18",
+    "use_model": "OriTextSACQPoolResNet34",
     "expand_dim": True,
     "concept_attn_head": 8,
-    "concept_attn_max_fn": "gumbel",
-    "patch_attn_head": 64,
-    "patch_attn_max_fn": "sparsemax",
+    "concept_attn_max_fn": "sparsemax",
+    "patch_attn_head": 1,
+    "patch_attn_max_fn": "softmax",
     "num_concepts": 500,
     "num_attended_concepts": 100,
     "norm_concepts": False,
@@ -34,7 +34,7 @@ seed_task_elements = {
     "loss_sparsity_weight": 0,
     "loss_sparsity_adaptive": False,
     "loss_diversity_weight": 0.0,
-    "supplementary_description": "Test OriTextCQPoolResNet18 on zero-shot dataset",
+    "supplementary_description": "Test ResNet34 on zero-shot dataset",
     "num_epochs": 1000,
     "warmup_epochs": 10,
     "batch_size": 125,
@@ -53,16 +53,16 @@ def generate_tasks(seed_task_elements, parallel, gpus):
     new_task_element["loss_diversity_weight"] = 0.0
     new_task_element["expand_dim"] = True
     new_task_element["concept_attn_head"] = 8
-    new_task_element["concept_attn_max_fn"] = "gumbel"
+    new_task_element["concept_attn_max_fn"] = "sparsemax"
     tasks.append(new_task_element)
 
-    # task 2
-    new_task_element = seed_task_elements.copy()
-    new_task_element["loss_diversity_weight"] = 1.0
-    new_task_element["expand_dim"] = True
-    new_task_element["concept_attn_head"] = 8
-    new_task_element["concept_attn_max_fn"] = "gumbel"
-    tasks.append(new_task_element)
+    # # task 2
+    # new_task_element = seed_task_elements.copy()
+    # new_task_element["loss_diversity_weight"] = 1.0
+    # new_task_element["expand_dim"] = True
+    # new_task_element["concept_attn_head"] = 8
+    # new_task_element["concept_attn_max_fn"] = "gumbel"
+    # tasks.append(new_task_element)
 
     # # task 3
     # new_task_element = seed_task_elements.copy()

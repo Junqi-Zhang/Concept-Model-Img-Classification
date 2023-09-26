@@ -11,7 +11,7 @@ summary_df = pd.read_json(summary_path, lines=True)
 
 select_df = summary_df[
     summary_df["use_model"].isin(
-        ["OriTextCQPoolResNet18"]
+        ["OriTextCQPoolResNet34", "OriTextQuantResNet34", "OriTextResNet34", "OriTextSACQPoolResNet34", "OriTextSA2CQPoolResNet34"]
     )
 ]
 # select_df[["concept_attn_head", "patch_attn_head"]] = select_df[[

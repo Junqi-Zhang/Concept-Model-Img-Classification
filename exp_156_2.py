@@ -19,10 +19,10 @@ seed_task_elements = {
     # "warmup_model": "",
     # "warmup_checkpoint_path": "",
     "text_embeds_path": "pre-trained/imagenet_zeroshot_simple_classifier.pt",
-    "use_model": "OriTextCQPoolResNet18",
-    "expand_dim": False,
-    "concept_attn_head": 128,
-    "concept_attn_max_fn": "gumbel",
+    "use_model": "OriTextSACQPoolResNet34",
+    "expand_dim": True,
+    "concept_attn_head": 1,
+    "concept_attn_max_fn": "sparsemax",
     "patch_attn_head": 1,
     "patch_attn_max_fn": "softmax",
     "num_concepts": 500,
@@ -34,10 +34,10 @@ seed_task_elements = {
     "loss_sparsity_weight": 0,
     "loss_sparsity_adaptive": False,
     "loss_diversity_weight": 0.0,
-    "supplementary_description": "Test OriTextCQPoolResNet18 on zero-shot dataset",
+    "supplementary_description": "Test ResNet34 on zero-shot dataset",
     "num_epochs": 1000,
     "warmup_epochs": 10,
-    "batch_size": 50,
+    "batch_size": 125,
     # "batch_size": 75,
     "learning_rate": 5e-4,
     "save_interval": 1
@@ -50,19 +50,19 @@ def generate_tasks(seed_task_elements, parallel, gpus):
 
     # task 1
     new_task_element = seed_task_elements.copy()
-    new_task_element["loss_diversity_weight"] = 1.0
-    new_task_element["expand_dim"] = False
-    new_task_element["concept_attn_head"] = 128
-    new_task_element["concept_attn_max_fn"] = "gumbel"
+    new_task_element["loss_diversity_weight"] = 0.0
+    new_task_element["expand_dim"] = True
+    new_task_element["concept_attn_head"] = 1
+    new_task_element["concept_attn_max_fn"] = "sparsemax"
     tasks.append(new_task_element)
 
-    # task 2
-    new_task_element = seed_task_elements.copy()
-    new_task_element["loss_diversity_weight"] = 0.0
-    new_task_element["expand_dim"] = False
-    new_task_element["concept_attn_head"] = 128
-    new_task_element["concept_attn_max_fn"] = "gumbel"
-    tasks.append(new_task_element)
+    # # task 2
+    # new_task_element = seed_task_elements.copy()
+    # new_task_element["loss_diversity_weight"] = 1.0
+    # new_task_element["expand_dim"] = True
+    # new_task_element["concept_attn_head"] = 8
+    # new_task_element["concept_attn_max_fn"] = "gumbel"
+    # tasks.append(new_task_element)
 
     # # task 3
     # new_task_element = seed_task_elements.copy()

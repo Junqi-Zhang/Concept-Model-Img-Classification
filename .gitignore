@@ -5,6 +5,7 @@
 /logs/
 /checkpoints/
 /concept_images/
+/summary_excels/
 
 *.tar.gz
 *.xlsx

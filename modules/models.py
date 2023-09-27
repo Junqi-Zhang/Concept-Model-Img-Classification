@@ -1,565 +1,257 @@
 import torch
 import torch.nn as nn
-# import torch.nn.functional as F
-from torchvision.models import resnet18, resnet50
-from torch import Tensor
-from typing import Callable, Dict
-from collections import OrderedDict
-from sparsemax import Sparsemax
+import torchvision.models as models
+from utils import Recorder
+from typing import Callable, Dict, List, Tuple, Any
 
 
-class BaseResNet(nn.Module):
+def get_callable_backbone(backbone_name: str) -> Callable:
     """
-    Base class for ResNet models.
+    Returns a callable function for the specified backbone model.
 
     Args:
-        backbone_fn (Callable): Function to create the backbone model.
-        num_classes (int): Number of output classes.
+        backbone_name (str): The name of the backbone model.
+
+    Returns:
+        Callable: A callable function for the specified backbone model.
+
+    Raises:
+        ValueError: If the provided backbone_name is not valid.
+    """
+    callable_backbones = {
+        "resnet18": models.resnet18,
+        "resnet34": models.resnet34,
+        "resnet50": models.resnet50
+        # Add other models here
+    }
+
+    if backbone_name in callable_backbones:
+        return callable_backbones[backbone_name]
+    else:
+        raise ValueError(f"Invalid backbone name: {backbone_name}")
+
+
+class ResNet(nn.Module):
+    """
+    ResNet class, a custom implementation of ResNet architecture using a configurable backbone.
+
+    Attributes:
+        backbone_name (str): The name of the backbone model.
+        num_classes (int): The number of output classes.
+        backbone_callable (Callable): A callable function for the specified backbone model.
+        backbone (nn.Module): The backbone model instance.
     """
 
-    def __init__(self, backbone_fn: Callable, num_classes: int):
-        super(BaseResNet, self).__init__()
-        self.backbone = backbone_fn(weights=None, num_classes=num_classes)
+    def __init__(self, config: Recorder):
+        super(ResNet, self).__init__()
 
-    def forward(self, x: Tensor) -> Dict[str, Tensor]:
+        self.parse_config(config)
+
+        self.backbone_callable = get_callable_backbone(self.backbone_name)
+        self.backbone = self.backbone_callable(
+            weights=None, num_classes=self.num_classes
+        )
+
+    def parse_config(self, config: Recorder) -> None:
+        self.backbone_name = config.get("backbone_name")
+        self.num_classes = config.get("num_classes")
+
+    def forward(self, x: torch.Tensor) -> Dict[str, torch.Tensor]:
+        return {"outputs": self.backbone(x)}
+
+
+class ContrastImageTextEmbeds(nn.Module):
+    """
+    A PyTorch module for contrastive learning of image and text embeddings.
+
+    This module applies layer normalization and linear projection to both image
+    and text embeddings, followed by L2 normalization. The output is the dot
+    product of the image and text embeddings, scaled by an exponential scaling factor.
+
+    Attributes:
+        embed_dim (int): The dimension of the input embeddings.
+    """
+
+    def __init__(self, embed_dim: int):
+        super(ContrastImageTextEmbeds, self).__init__()
+
+        # Layer normalization for image and text embeddings
+        self.image_post_layernorm = nn.LayerNorm(embed_dim)
+        self.text_post_layernorm = nn.LayerNorm(embed_dim)
+
+        # Linear projection layers for image and text embeddings
+        self.image_projection = nn.Linear(embed_dim, embed_dim, bias=False)
+        self.text_projection = nn.Linear(embed_dim, embed_dim, bias=False)
+
+        # Scaling factor for the output
+        self.logit_scale = nn.Parameter(torch.tensor(0.0))
+
+    def forward(self, image_embeds: torch.Tensor, text_embeds: torch.Tensor) -> torch.Tensor:
+        """
+        Forward pass of the ContrastImageTextEmbeds module.
+
+        Args:
+            image_embeds (torch.Tensor): Image embeddings of shape (batch_size, embed_dim).
+            text_embeds (torch.Tensor): Text embeddings of shape (batch_size, embed_dim).
+
+        Returns:
+            torch.Tensor: The dot product of image and text embeddings, scaled by the scaling factor.
+        """
+        # Apply layer normalization and linear projection to image embeddings
+        image_embeds = self.image_projection(
+            self.image_post_layernorm(image_embeds)
+        )
+        # Normalize image embeddings using L2 norm
+        image_embeds = image_embeds / image_embeds.norm(dim=1, keepdim=True)
+
+        # Apply layer normalization and linear projection to text embeddings
+        text_embeds = self.text_projection(
+            self.text_post_layernorm(text_embeds)
+        )
+        # Normalize text embeddings using L2 norm
+        text_embeds = text_embeds / text_embeds.norm(dim=1, keepdim=True)
+
+        # Calculate the exponential of the scaling factor
+        logit_scale_exp = self.logit_scale.exp()
+        # Compute the dot product of image and text embeddings, scaled by the scaling factor
+        outputs = torch.matmul(
+            image_embeds, text_embeds.t()
+        ) * logit_scale_exp
+
+        return outputs
+
+
+class TextEncoderSimulator(nn.Module):
+    """  
+    TextEncoderSimulator simulates a text encoder, directly returning text embeddings.  
+    """
+
+    def __init__(self, text_embeds_path: str):
+        """  
+        Initialize TextEncoderSimulator.  
+
+        :param text_embeds_path: Path to the text embedding tensor  
+        """
+        super(TextEncoderSimulator, self).__init__()
+        self.text_embeds = nn.Parameter(
+            torch.load(text_embeds_path).t(),
+            requires_grad=False
+        )
+
+    def forward(self, idx: List) -> torch.Tensor:
+        """  
+        Return the corresponding text embeddings based on row indices.  
+
+        :param idx: List of row indices to retrieve the embeddings for  
+        :return: The corresponding text embeddings  
+        """
+        return self.text_embeds[idx, :]
+
+
+class OriTextResNet(nn.Module):
+    def __init__(self, config: Recorder):
+        super(OriTextResNet, self).__init__()
+
+        self.parse_config(config=config)
+
+        self.backbone_callable = get_callable_backbone(self.backbone_name)
+        self.backbone = self.backbone_callable(
+            weights=None, num_classes=self.text_embeds.size(0)
+        )
+
+        self.image_encoder = nn.Sequential(
+            *list(self.backbone.children())[:-1]
+        )
+        self.text_encoder = TextEncoderSimulator(
+            text_embeds_path=self.text_embeds_path)
+
+        self.contrast = ContrastImageTextEmbeds(embed_dim=self.contrastive_dim)
+
+    def parse_config(self, config: Recorder) -> None:
+        self.backbone_name = config.get("backbone_name")
+        self.text_embeds_path = config.get("text_embeds_path")
+        self.contrastive_dim = config.get("contrastive_dim")
+
+    def transform_embed_dim(self, image_embeds: torch.Tensor, text_embeds: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+        """
+        Transform embedding dimensions if necessary.
+
+        Args:
+            image_embeds (torch.Tensor): Image embeddings.
+            text_embeds (torch.Tensor): Text embeddings.
+
+        Returns:
+            Tuple[torch.Tensor, torch.Tensor]: Transformed image and text embeddings.
+        """
+        if image_embeds.size(1) != self.contrastive_dim:
+            image_dim_transformer = nn.Linear(
+                image_embeds.size(1), self.contrastive_dim
+            )
+            image_embeds = image_dim_transformer(image_embeds)
+        if text_embeds.size(1) != self.contrastive_dim:
+            text_dim_transformer = nn.Linear(
+                text_embeds.size(1), self.contrastive_dim
+            )
+            text_embeds = text_dim_transformer(text_embeds)
+        return image_embeds, text_embeds
+
+    def forward(self, x: torch.Tensor, classes_idx: List) -> Dict[str, torch.Tensor]:
         """
         Forward pass of the model.
 
         Args:
-            x (torch.Tensor): Input tensor.
+            x (torch.Tensor): Input tensor, typically images.
+            classes_idx (List): List of class indices.
 
         Returns:
-            dict: A dictionary containing the model's output.
+            Dict[str, torch.Tensor]: Model outputs.
         """
-        return {"outputs": self.backbone(x)}
+        image_embeds = torch.flatten(
+            self.image_encoder(x), start_dim=1
+        )
+        text_embeds = self.text_encoder(classes_idx)
 
+        image_embeds, text_embeds = self.transform_embed_dim(
+            image_embeds=image_embeds, text_embeds=text_embeds
+        )
 
-class ResNet18(BaseResNet):
-    """
-    ResNet18 model.
-
-    Args:
-        num_classes (int): Number of output classes.
-    """
-
-    def __init__(self, num_classes: int, *args, **kwargs):
-        super(ResNet18, self).__init__(resnet18, num_classes)
-
-
-class ResNet50(BaseResNet):
-    """
-    ResNet50 model.
-
-    Args:
-        num_classes (int): Number of output classes.
-    """
-
-    def __init__(self, num_classes: int, *args, **kwargs):
-        super(ResNet50, self).__init__(resnet50, num_classes)
-
-
-class ContrastiveImgClassifier(nn.Module):
-    def __init__(self, input_dim: int, num_classes: int):
-        super(ContrastiveImgClassifier, self).__init__()
-
-        self.post_layernorm = nn.LayerNorm(input_dim)
-
-        # Learnable mapping matrix from image space to joint image-text space
-        self.image_projection = nn.Parameter(
-            torch.Tensor(input_dim, input_dim)
-        )  # D * D
-
-        # Classification layer
-
-        self.clf = nn.Parameter(
-            torch.Tensor(num_classes, input_dim)
-        )  # K * D, K represents the num_classes
-
-        # Scaler
-        self.logit_scale = nn.Parameter(torch.tensor(0.0))
-
-        # Parameter initialization
-        self.init_parameters()
-
-    def init_parameters(self) -> None:
-        # Initialize the mapping matrix from image space to joint image-text space
-        nn.init.xavier_uniform_(self.image_projection)
-        # Initialize clf
-        nn.init.xavier_uniform_(self.clf)
-
-    def forward(self, x: Tensor) -> Dict[str, Tensor]:
-        x = self.post_layernorm(x)  # Align with CLIP post_layernorm
-        image_embeds = torch.matmul(
-            x, self.image_projection
-        )  # B * D, align with CLIP mapping to image-text space
-
-        # Normalize image_embeds using L2 norm, align with CLIP
-        image_embeds = torch.div(
-            image_embeds,
-            torch.norm(image_embeds, dim=1, p=2).view(-1, 1)
-        )  # B * D
-
-        # Add noise to classification weights, align with CLIP
-        clf = self.clf + (torch.rand_like(self.clf) - 0.5) * 0.01
-        # Normalize clf using L2 norm
-        clf = torch.div(
-            clf,
-            torch.norm(clf, dim=1, p=2).view(-1, 1)
-        )  # K * D
-
-        # The shape of output is B * K,
-        # where K represents num_classes.
-        logit_scale = self.logit_scale.exp()
-        outputs = torch.matmul(
-            image_embeds, clf.t()
-        ) * logit_scale  # B * K
+        outputs = self.contrast(
+            image_embeds=image_embeds, text_embeds=text_embeds
+        )
 
         return {"outputs": outputs}
 
 
-class ContrastiveResNet18(nn.Module):
-    def __init__(self, num_classes: int, *args, **kwargs):
-        super(ContrastiveResNet18, self).__init__()
+class Concepts(nn.Module):
+    def __init__(self, num_concepts: int, concepts_dim: int):
+        super(Concepts, self).__init__()
 
-        img_classifier = resnet18(weights=None, num_classes=num_classes)
-        self.backbone = nn.Sequential(*list(img_classifier.children())[:-1])
-
-        self.clf = ContrastiveImgClassifier(
-            input_dim=512,
-            num_classes=num_classes
+        self.concepts = nn.Parameter(
+            torch.Tensor(num_concepts, concepts_dim)
         )
 
-    def forward(self, x: Tensor) -> Dict[str, Tensor]:
-        x = self.backbone(x)
-        x = x.view(x.size(0), -1)  # 512-dimensional vector for ResNet18
-        return self.clf(x)
-
-
-class BasicConceptQuantizationV4(nn.Module):
-    def __init__(
-        self,
-        input_dim: int,
-        num_classes: int,
-        num_concepts: int,
-        norm_concepts: bool,
-        grad_factor: float
-    ):
-        super(BasicConceptQuantizationV4, self).__init__()
-
-        self.input_dim = input_dim
-        self.grad_factor = grad_factor
-        self.norm_concepts = norm_concepts
-
-        # The shape of self.concepts should be C * D,
-        # where C represents the num_concepts,
-        # D represents the input_dim.
-        self.concepts = nn.Parameter(
-            torch.Tensor(num_concepts, input_dim)
-        )  # C * D
-
-        # Set W_q and W_k as learnable parameters
-        self.query_transform = nn.Parameter(
-            torch.Tensor(input_dim, input_dim)
-        )  # D * D
-        self.key_transform = nn.Parameter(
-            torch.Tensor(input_dim, input_dim)
-        )  # D * D
-
-        # Set W_v as the identity matrix
-        device = "cuda" if torch.cuda.is_available() else "cpu"
-        self.value_transform = torch.eye(
-            input_dim,
-            dtype=torch.float,
-            device=device
-        )  # D * D
-
-        # Learnable mapping matrix from image space to image-text joint space
-        self.image_projection = nn.Parameter(
-            torch.Tensor(input_dim, input_dim)
-        )  # D * D
-
-        # Classification layer
-        self.clf = nn.Parameter(
-            torch.Tensor(num_classes, input_dim)
-        )  # K * D, K represents the num_classes
-
-        # Scaler
-        self.logit_scale = nn.Parameter(torch.tensor(0.0))
-
-        # Parameter initialization
-        self.init_parameters()
-
-        # Attention_weight sparsemax
-        self.sparsemax = Sparsemax(dim=1)
-
-        # Normalization layers
-        # self.pre_layernorm = nn.LayerNorm(input_dim)
-        # self.concept_layernorm = nn.LayerNorm(input_dim)
-        self.post_layernorm = nn.LayerNorm(input_dim)
-
-    def init_parameters(self) -> None:
-        # Initialize concepts
         nn.init.xavier_uniform_(self.concepts)
-        # Initialize W_q and W_k
-        nn.init.xavier_uniform_(self.query_transform)
-        nn.init.xavier_uniform_(self.key_transform)
-        # Initialize the mapping matrix from image space to image-text joint space
-        nn.init.xavier_uniform_(self.image_projection)
-        # Initialize clf
-        nn.init.xavier_uniform_(self.clf)
 
-    def forward(self, x: Tensor) -> Dict[str, Tensor]:
+    def forward(self, norm_concepts: bool) -> Dict[str, torch.Tensor]:
+        """
+        Forward pass of the Concepts module.
 
-        # The shape of x should be B * D,
-        # where B represents the batch_size.
+        Args:
+            norm_concepts (bool): Whether to normalize concept vectors.
 
-        if self.norm_concepts:
-            concepts = torch.div(
-                self.concepts,
-                torch.norm(self.concepts, dim=1, p=2).view(-1, 1)
-            )
-        else:
-            concepts = self.concepts
+        Returns:
+            Dict[str, torch.Tensor]: Dictionary containing concepts and their cosine similarity matrix.
+        """
+        # Normalize concept vectors if requested.
+        normalized_concepts = self.concepts / \
+            self.concepts.norm(dim=1, keepdim=True)
 
-        # Linear transformations for query, key, and value
-        query = torch.matmul(x, self.query_transform)  # B * D
-        key = torch.matmul(concepts, self.key_transform)  # C * D
-        value = torch.matmul(concepts, self.value_transform)  # C * D
-
-        attention_weights = torch.matmul(query, key.t())  # B * C
-        attention_weights = attention_weights / \
-            torch.sqrt(torch.tensor(self.input_dim).float())
-        attention_weights = self.sparsemax(attention_weights)  # Use sparsemax
-
-        concept_summary = torch.matmul(
-            attention_weights * self.grad_factor, value
-        )  # B * D
-        concept_summary = self.post_layernorm(concept_summary)  # B * D
-
-        image_embeds = torch.matmul(
-            concept_summary, self.image_projection
-        )  # B * D
-        # Normalize image_embeds using L2 norm
-        image_embeds = torch.div(
-            image_embeds,
-            torch.norm(image_embeds, dim=1, p=2).view(-1, 1)
-        )  # B * D
-
-        # Add noise to classification weights
-        clf = self.clf + (torch.rand_like(self.clf) - 0.5) * 0.01
-        # Normalize clf using L2 norm
-        clf = torch.div(
-            clf,
-            torch.norm(clf, dim=1, p=2).view(-1, 1)
-        )  # K * D
-
-        # The shape of output is B * K,
-        # where K represents num_classes.
-        logit_scale = self.logit_scale.exp()
-        outputs = torch.matmul(
-            image_embeds, clf.t()
-        ) * logit_scale  # B * K
-
-        # Calculate the cosine similarity matrix for concepts
-        if self.norm_concepts:
-            normalized_concepts = concepts
-        else:
-            normalized_concepts = torch.div(
-                concepts,
-                torch.norm(concepts, dim=1, p=2).view(-1, 1)
-            )
-        concept_similarity = torch.matmul(
+        # Compute the cosine similarity matrix between normalized concepts.
+        concept_cosine_similarity = torch.matmul(
             normalized_concepts, normalized_concepts.t()
-        )  # C * C
+        )
 
         return {
-            "outputs": outputs,
-            "attention_weights": attention_weights,
-            "concept_similarity": concept_similarity
+            "concepts": normalized_concepts if norm_concepts else self.concepts,
+            "concept_cosine_similarity": concept_cosine_similarity
         }
-
-
-class BasicQuantResNet18V4(nn.Module):
-    def __init__(
-        self,
-        num_classes: int,
-        num_concepts: int,
-        norm_concepts: bool,
-        grad_factor: float,
-        *args,
-        **kwargs
-    ):
-        super(BasicQuantResNet18V4, self).__init__()
-
-        img_classifier = resnet18(weights=None, num_classes=num_classes)
-        self.backbone = nn.Sequential(*list(img_classifier.children())[:-1])
-
-        self.cq = BasicConceptQuantizationV4(
-            input_dim=512,
-            num_classes=num_classes,
-            num_concepts=num_concepts,
-            norm_concepts=norm_concepts,
-            grad_factor=grad_factor
-        )
-
-    def forward(self, x: Tensor) -> Dict[str, Tensor]:
-        x = self.backbone(x)
-        x = x.view(x.size(0), -1)  # 512-dimensional vector for ResNet18
-        return self.cq(x)
-
-
-class BasicQuantResNet50V4(nn.Module):
-    def __init__(
-        self,
-        num_classes: int,
-        num_concepts: int,
-        norm_concepts: bool,
-        grad_factor: float,
-        *args,
-        **kwargs
-    ):
-        super(BasicQuantResNet50V4, self).__init__()
-
-        img_classifier = resnet50(weights=None, num_classes=num_classes)
-        self.backbone = nn.Sequential(*list(img_classifier.children())[:-1])
-
-        # Add a fully connected layer to map the dimension from 2048 to 512
-        self.fc = nn.Linear(2048, 512)
-
-        self.cq = BasicConceptQuantizationV4(
-            input_dim=512,  # Keep it as 512, as we're mapping the output of ResNet50 to a 512-dimensional vector
-            num_classes=num_classes,
-            num_concepts=num_concepts,
-            norm_concepts=norm_concepts,
-            grad_factor=grad_factor
-        )
-
-    def forward(self, x: Tensor) -> Dict[str, Tensor]:
-        x = self.backbone(x)
-        x = x.view(x.size(0), -1)  # 2048-dimensional vector for ResNet50
-        x = self.fc(x)  # Map the dimension from 2048 to 512
-        return self.cq(x)
-
-
-class BasicConceptQuantizationV4Smooth(nn.Module):
-    def __init__(
-        self,
-        input_dim: int,
-        num_classes: int,
-        num_concepts: int,
-        norm_concepts: bool,
-        grad_factor: float,
-        smoothing: float
-    ):
-        super(BasicConceptQuantizationV4Smooth, self).__init__()
-
-        self.input_dim = input_dim
-        self.norm_concepts = norm_concepts
-        self.grad_factor = grad_factor
-        # Strength of sparsemax smoothing (consider linking sparsity regularization weight)
-        self.smoothing = smoothing
-
-        # The shape of self.concepts should be C * D,
-        # where C represents the num_concepts,
-        # D represents the input_dim.
-        self.concepts = nn.Parameter(
-            torch.Tensor(num_concepts, input_dim)
-        )  # C * D
-
-        # W_q and W_k are set as learnable parameters
-        self.query_transform = nn.Parameter(
-            torch.Tensor(input_dim, input_dim)
-        )  # D * D
-        self.key_transform = nn.Parameter(
-            torch.Tensor(input_dim, input_dim)
-        )  # D * D
-
-        # Set W_v as the identity matrix
-        device = "cuda" if torch.cuda.is_available() else "cpu"
-        self.value_transform = torch.eye(
-            input_dim,
-            dtype=torch.float,
-            device=device
-        )  # D * D
-
-        # Learnable mapping matrix from image space to image-text joint space
-        self.image_projection = nn.Parameter(
-            torch.Tensor(input_dim, input_dim)
-        )  # D * D
-
-        # Classification layer
-        self.clf = nn.Parameter(
-            torch.Tensor(num_classes, input_dim)
-        )  # K * D, K represents the num_classes
-
-        # Scaler
-        self.logit_scale = nn.Parameter(torch.tensor(0.0))
-
-        # Parameter initialization
-        self.init_parameters()
-
-        # Attention_weight sparsemax
-        self.sparsemax = Sparsemax(dim=1)
-
-        # Normalization layers
-        # self.pre_layernorm = nn.LayerNorm(input_dim)
-        # self.concept_layernorm = nn.LayerNorm(input_dim)
-        self.post_layernorm = nn.LayerNorm(input_dim)
-
-    def init_parameters(self) -> None:
-        # Initialize concepts
-        nn.init.xavier_uniform_(self.concepts)
-        # Initialize W_q and W_k
-        nn.init.xavier_uniform_(self.query_transform)
-        nn.init.xavier_uniform_(self.key_transform)
-        # Initialize the mapping matrix from image space to image-text joint space
-        nn.init.xavier_uniform_(self.image_projection)
-        # Initialize clf
-        nn.init.xavier_uniform_(self.clf)
-
-    def forward(self, x: Tensor) -> Dict[str, Tensor]:
-
-        # The shape of x should be B * D,
-        # where B represents the batch_size.
-
-        if self.norm_concepts:
-            concepts = torch.div(
-                self.concepts,
-                torch.norm(self.concepts, dim=1, p=2).view(-1, 1)
-            )
-        else:
-            concepts = self.concepts
-
-        # Linear transformation of query, key, value
-        query = torch.matmul(x, self.query_transform)  # B * D
-        key = torch.matmul(concepts, self.key_transform)  # C * D
-        value = torch.matmul(concepts, self.value_transform)  # C * D
-
-        attention_weights = torch.matmul(query, key.t())  # B * C
-        attention_weights = attention_weights / \
-            torch.sqrt(torch.tensor(self.input_dim).float())
-        attention_weights = self.sparsemax(attention_weights)  # Use sparsemax
-
-        def smooth_tensor_matrix(input_matrix: torch.Tensor, smoothing=0.1):
-            """
-            Smooth every row in a tensor matrix in PyTorch
-            """
-            assert 0 <= smoothing < 1
-            num_classes = input_matrix.size(1)
-            non_zero_mask = input_matrix > 0
-            num_nonzero_per_row = non_zero_mask.sum(dim=1, keepdim=True)
-            num_zero_per_row = num_classes - num_nonzero_per_row
-            smoothing_value_for_zeros = (
-                smoothing / num_zero_per_row
-            ).expand_as(input_matrix)
-            smoothing_value_for_non_zeros = (
-                smoothing / num_nonzero_per_row
-            ).expand_as(input_matrix)
-            smoothed_matrix = input_matrix.clone()
-            smoothed_matrix[non_zero_mask] -= smoothing_value_for_non_zeros[non_zero_mask]
-            smoothed_matrix[~non_zero_mask] += smoothing_value_for_zeros[~non_zero_mask]
-            return smoothed_matrix
-
-        # Different forward propagation structures for train and eval modes
-        if self.training:
-            attention_weights_applied = smooth_tensor_matrix(
-                attention_weights, self.smoothing
-            )
-        else:
-            attention_weights_applied = attention_weights
-
-        concept_summary = torch.matmul(
-            attention_weights_applied * self.grad_factor, value
-        )  # B * D
-        concept_summary = self.post_layernorm(concept_summary)  # B * D
-
-        image_embeds = torch.matmul(
-            concept_summary, self.image_projection
-        )  # B * D
-        # Normalize image_embeds by L2 norm
-        image_embeds = torch.div(
-            image_embeds,
-            torch.norm(image_embeds, dim=1, p=2).view(-1, 1)
-        )  # B * D
-
-        # Add noise to classification weights
-        clf = self.clf + (torch.rand_like(self.clf) - 0.5) * 0.01
-        # Normalize clf by L2 norm
-        clf = torch.div(
-            clf,
-            torch.norm(clf, dim=1, p=2).view(-1, 1)
-        )  # K * D
-
-        # The shape of output is B * K,
-        # where K represents num_classes.
-        logit_scale = self.logit_scale.exp()
-        outputs = torch.matmul(
-            image_embeds, clf.t()
-        ) * logit_scale  # B * K
-
-        # Calculate the cosine similarity matrix of concepts
-        if self.norm_concepts:
-            normalized_concepts = concepts
-        else:
-            normalized_concepts = torch.div(
-                concepts,
-                torch.norm(concepts, dim=1, p=2).view(-1, 1)
-            )
-        concept_similarity = torch.matmul(
-            normalized_concepts, normalized_concepts.t()
-        )  # C * C
-
-        # concept_similarity = F.cosine_similarity(
-        #     concepts.unsqueeze(1),
-        #     concepts.unsqueeze(0),
-        #     dim=2
-        # )  # C * C
-
-        return {
-            "outputs": outputs,
-            "attention_weights": attention_weights,
-            "concept_similarity": concept_similarity
-        }
-
-
-class BasicQuantResNet18V4Smooth(nn.Module):
-    def __init__(
-        self,
-        num_classes: int,
-        num_concepts: int,
-        norm_concepts: bool,
-        grad_factor: float,
-        smoothing: float,
-        *args,
-        **kwargs
-    ):
-        super(BasicQuantResNet18V4Smooth, self).__init__()
-
-        img_classifier = resnet18(weights=None, num_classes=num_classes)
-        self.backbone = nn.Sequential(*list(img_classifier.children())[:-1])
-
-        self.cq = BasicConceptQuantizationV4Smooth(
-            input_dim=512,
-            num_classes=num_classes,
-            num_concepts=num_concepts,
-            norm_concepts=norm_concepts,
-            grad_factor=grad_factor,
-            smoothing=smoothing
-        )
-
-    def forward(self, x: Tensor) -> Dict[str, Tensor]:
-        x = self.backbone(x)
-        x = x.view(x.size(0), -1)  # 512-dimensional vector for ResNet18
-        return self.cq(x)
-
-
-MODELS = OrderedDict(
-    {
-        "ResNet18": ResNet18,
-        "ResNet50": ResNet50,
-        "ContrastiveResNet18": ContrastiveResNet18,
-        "BasicQuantResNet18V4": BasicQuantResNet18V4,
-        "BasicQuantResNet50V4": BasicQuantResNet50V4,
-        "BasicQuantResNet18V4Smooth": BasicQuantResNet18V4Smooth
-    }
-)

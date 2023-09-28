@@ -226,6 +226,35 @@ class TextEncoderSimulator(nn.Module):
 
 
 class OriTextResNet(nn.Module):
+    """
+    A PyTorch module that combines an image encoder and a text encoder to perform contrastive learning.
+
+    Args:
+        config (Recorder): A configuration object that contains the following attributes:
+            - backbone_name (str): The name of the image encoder backbone.
+            - image_dim (int): The dimension of the image embeddings.
+            - text_embeds_path (str): The path to the text embeddings file.
+            - text_dim (int): The dimension of the text embeddings.
+            - contrastive_dim (int): The dimension of the contrastive embeddings.
+
+    Attributes:
+        backbone_callable (Callable): A callable that returns the image encoder backbone.
+        backbone (nn.Module): The image encoder backbone.
+        image_encoder (nn.Sequential): The image encoder.
+        text_encoder (TextEncoderSimulator): The text encoder.
+        image_dim_transformer (nn.Linear): A linear layer that transforms the image embeddings to the contrastive dimension.
+        text_dim_transformer (nn.Linear): A linear layer that transforms the text embeddings to the contrastive dimension.
+        contrast (ContrastImageTextEmbeds): A module that performs contrastive learning on the image and text embeddings.
+
+    Methods:
+        parse_config(config: Recorder) -> None: Parses the configuration object.
+        build_transform_dim_layer() -> None: Builds the linear layers that transform the image and text embeddings to the contrastive dimension.
+        forward(x: torch.Tensor, classes_idx: List) -> Dict[str, torch.Tensor]: Performs a forward pass of the model.
+
+    Returns:
+        Dict[str, torch.Tensor]: A dictionary containing the model outputs.
+    """
+
     def __init__(self, config: Recorder):
         super(OriTextResNet, self).__init__()
 
@@ -233,7 +262,7 @@ class OriTextResNet(nn.Module):
 
         self.backbone_callable = get_callable_backbone(self.backbone_name)
         self.backbone = self.backbone_callable(
-            weights=None, num_classes=0
+            weights=None, num_classes=1
         )
         self.image_encoder = nn.Sequential(
             *list(self.backbone.children())[:-1]
@@ -242,34 +271,28 @@ class OriTextResNet(nn.Module):
             text_embeds_path=self.text_embeds_path
         )
 
+        self.build_transform_dim_layer()
+
         self.contrast = ContrastImageTextEmbeds(embed_dim=self.contrastive_dim)
 
     def parse_config(self, config: Recorder) -> None:
         self.backbone_name = config.get("backbone_name")
+        self.image_dim = config.get("image_dim")
+
         self.text_embeds_path = config.get("text_embeds_path")
+        self.text_dim = config.get("text_dim")
+
         self.contrastive_dim = config.get("contrastive_dim")
 
-    def transform_embed_dim(self, embeds: torch.Tensor) -> torch.Tensor:
-        """
-        Transform the dimension of the input tensor from `embeds.size(1)` to `self.contrastive_dim`.
-
-        Args:
-            embeds (torch.Tensor): The input tensor to be transformed.
-
-        Returns:
-            torch.Tensor: The transformed tensor.
-
-        If the dimension of the input tensor is already equal to `self.contrastive_dim`, the input tensor is returned directly.
-        Otherwise, a `nn.Linear` module is created to transform the dimension of the input tensor to `self.contrastive_dim`,
-        and the input tensor is passed to the module for transformation. The transformed tensor is then returned.
-
-        """
-        if embeds.size(1) != self.contrastive_dim:
-            embeds_dim_transformer = nn.Linear(
-                embeds.size(1), self.contrastive_dim
+    def build_transform_dim_layer(self) -> None:
+        if self.image_dim != self.contrastive_dim:
+            self.image_dim_transformer = nn.Linear(
+                self.image_dim, self.contrastive_dim
             )
-            embeds = embeds_dim_transformer(embeds)
-        return embeds
+        if self.text_dim != self.contrastive_dim:
+            self.text_dim_transformer = nn.Linear(
+                self.text_dim, self.contrastive_dim
+            )
 
     def forward(self, x: torch.Tensor, classes_idx: List) -> Dict[str, torch.Tensor]:
         """
@@ -285,10 +308,12 @@ class OriTextResNet(nn.Module):
         image_embeds = torch.flatten(
             self.image_encoder(x), start_dim=1
         )
-        image_embeds = self.transform_embed_dim(embeds=image_embeds)
+        if self.image_dim != self.contrastive_dim:
+            image_embeds = self.image_dim_transformer(image_embeds)
 
         text_embeds = self.text_encoder(classes_idx)
-        text_embeds = self.transform_embed_dim(embeds=text_embeds)
+        if self.text_dim != self.contrastive_dim:
+            text_embeds = self.text_dim_transformer(text_embeds)
 
         outputs = self.contrast(
             image_embeds=image_embeds, text_embeds=text_embeds
@@ -482,6 +507,40 @@ class Conceptualizer(nn.Module):
 
 
 class OriTextConceptualResNet(nn.Module):
+    """
+    A PyTorch module that combines a ResNet-based image encoder and a text encoder
+    to produce contrastive embeddings for images and their corresponding textual
+    descriptions.
+
+    Args:
+        config (Recorder): A configuration object that contains hyperparameters
+            for the model.
+
+    Attributes:
+        backbone_callable (Callable): A callable that returns a ResNet-based
+            backbone network.
+        backbone (nn.Module): A ResNet-based backbone network.
+        image_encoder (nn.Module): A ResNet-based image encoder.
+        text_encoder (TextEncoderSimulator): A text encoder that produces
+            embeddings for textual descriptions.
+        concepts (Concepts): A module that generates low-level concepts from
+            image features.
+        conceptualizer (Conceptualizer): A module that maps image features to
+            low-level concepts.
+        contrast (ContrastImageTextEmbeds): A module that produces contrastive
+            embeddings for images and text.
+
+    Methods:
+        parse_config(config: Recorder) -> None: Parses the configuration object
+            and sets the model's attributes.
+        build_transform_dim_layer() -> None: Builds a linear layer to transform
+            text embeddings to the contrastive dimension.
+        forward(x: torch.Tensor, classes_idx: List) -> Dict[str, torch.Tensor]:
+            Computes the contrastive embeddings for a batch of images and their
+            corresponding textual descriptions.
+
+    """
+
     def __init__(self, config: Recorder):
         super(OriTextConceptualResNet, self).__init__()
 
@@ -489,14 +548,17 @@ class OriTextConceptualResNet(nn.Module):
 
         self.backbone_callable = get_callable_backbone(self.backbone_name)
         self.backbone = self.backbone_callable(
-            weights=None, num_classes=0
+            weights=None, num_classes=1
         )
         self.image_encoder = nn.Sequential(
             *list(self.backbone.children())[:-1]
         )
+
         self.text_encoder = TextEncoderSimulator(
             text_embeds_path=self.text_embeds_path
         )
+
+        self.build_transform_dim_layer()
 
         self.concepts = Concepts(
             num_concepts=self.num_concepts,
@@ -519,6 +581,7 @@ class OriTextConceptualResNet(nn.Module):
         self.image_dim = config.get("image_dim")
 
         self.text_embeds_path = config.get("text_embeds_path")
+        self.text_dim = config.get("text_dim")
 
         self.concept_dim = config.get("concept_dim")
         self.num_concepts = config.get("num_low_concepts")
@@ -531,27 +594,11 @@ class OriTextConceptualResNet(nn.Module):
 
         self.contrastive_dim = config.get("contrastive_dim")
 
-    def transform_embed_dim(self, embeds: torch.Tensor) -> torch.Tensor:
-        """
-        Transform the dimension of the input tensor from `embeds.size(1)` to `self.contrastive_dim`.
-
-        Args:
-            embeds (torch.Tensor): The input tensor to be transformed.
-
-        Returns:
-            torch.Tensor: The transformed tensor.
-
-        If the dimension of the input tensor is already equal to `self.contrastive_dim`, the input tensor is returned directly.
-        Otherwise, a `nn.Linear` module is created to transform the dimension of the input tensor to `self.contrastive_dim`,
-        and the input tensor is passed to the module for transformation. The transformed tensor is then returned.
-
-        """
-        if embeds.size(1) != self.contrastive_dim:
-            embeds_dim_transformer = nn.Linear(
-                embeds.size(1), self.contrastive_dim
+    def build_transform_dim_layer(self) -> None:
+        if self.text_dim != self.contrastive_dim:
+            self.text_dim_transformer = nn.Linear(
+                self.text_dim, self.contrastive_dim
             )
-            embeds = embeds_dim_transformer(embeds)
-        return embeds
 
     def forward(self, x: torch.Tensor, classes_idx: List) -> Dict[str, torch.Tensor]:
 
@@ -567,7 +614,8 @@ class OriTextConceptualResNet(nn.Module):
         assert self.contrastive_dim == image_embeds.size(1)
 
         text_embeds = self.text_encoder(classes_idx)
-        text_embeds = self.transform_embed_dim(embeds=text_embeds)
+        if self.text_dim != self.contrastive_dim:
+            text_embeds = self.text_dim_transformer(text_embeds)
 
         outputs = self.contrast(
             image_embeds=image_embeds, text_embeds=text_embeds
@@ -580,9 +628,255 @@ class OriTextConceptualResNet(nn.Module):
         }
 
 
+class ConceptualPool2d(nn.Module):
+    """
+    A module that performs conceptual pooling on a 2D image tensor.
+
+    Args:
+        spacial_dim (int): The spatial dimension of the input image.
+        feature_dim (int): The feature dimension of the input image.
+        concept_dim (int): The dimension of the conceptual space.
+        image_patch_n_head (int): The number of heads in the image patch attention mechanism.
+        image_patch_keep_head_dim (bool): Whether to keep the head dimension in the image patch attention mechanism.
+        image_patch_max_function_name (str): The name of the function used to compute the maximum in the image patch attention mechanism.
+        image_patch_max_smoothing (float): The smoothing factor used in the image patch attention mechanism.
+        patch_concept_n_head (int): The number of heads in the patch conceptual attention mechanism.
+        patch_concept_keep_head_dim (bool): Whether to keep the head dimension in the patch conceptual attention mechanism.
+        patch_concept_max_function_name (str): The name of the function used to compute the maximum in the patch conceptual attention mechanism.
+        patch_concept_max_smoothing (float): The smoothing factor used in the patch conceptual attention mechanism.
+
+    Inputs:
+        patches (torch.Tensor): The input image tensor of shape [B, D_q, H, W].
+        concepts (torch.Tensor): The input conceptual tensor of shape [B, N, D_kv].
+
+    Outputs:
+        conceptual_image (torch.Tensor): The output conceptual image tensor of shape [B, D_kv].
+        image_concept_attention_weight (torch.Tensor): The attention weight tensor of shape [B, N].
+        image_patch_attention_weight (torch.Tensor): The attention weight tensor of shape [B, 1+H*W].
+        patch_concept_attention_weight (torch.Tensor): The attention weight tensor of shape [B, 1+H*W, N].
+    """
+
+    def __init__(self,
+                 spacial_dim: int,
+                 feature_dim: int,
+                 concept_dim: int,
+                 image_patch_n_head: int,
+                 image_patch_keep_head_dim: bool,
+                 image_patch_max_function_name: str,
+                 image_patch_max_smoothing: float,
+                 patch_concept_n_head: int,
+                 patch_concept_keep_head_dim: bool,
+                 patch_concept_max_function_name: str,
+                 patch_concept_max_smoothing: float):
+        super(ConceptualPool2d, self).__init__()
+
+        # positional embedding initialization
+        self.positional_embedding = nn.Parameter(
+            torch.Tensor(spacial_dim ** 2 + 1, feature_dim)
+        )
+        nn.init.xavier_uniform_(self.positional_embedding)
+
+        # image spatial attention
+        self.image_patch_attention = ModifiedMultiHeadAttention(
+            query_dim=feature_dim,
+            key_dim=feature_dim,
+            n_head=image_patch_n_head,
+            keep_head_dim=image_patch_keep_head_dim,
+            max_function_name=image_patch_max_function_name,
+            max_smoothing=image_patch_max_smoothing
+        )
+
+        # patch conceptual attention
+        self.patch_concept_attention = ModifiedMultiHeadAttention(
+            query_dim=feature_dim,
+            key_dim=concept_dim,
+            n_head=patch_concept_n_head,
+            keep_head_dim=patch_concept_keep_head_dim,
+            max_function_name=patch_concept_max_function_name,
+            max_smoothing=patch_concept_max_smoothing
+        )
+
+    def forward(self, patches: torch.Tensor, concepts: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+        # reshape patches [B, D_q, H, W] to [B, H*W, D_q]
+        patches = patches.flatten(start_dim=2).permute(0, 2, 1)
+        patches = torch.cat(
+            [patches.mean(dim=1, keepdim=True), patches],
+            dim=1
+        )  # [B, 1+H*W, D_q]
+
+        # patch conceptual attention
+        concepts = concepts.unsqueeze(0)  # [1, N, D_kv]
+        conceptual_patches, patch_concept_attention_weight = self.patch_concept_attention(
+            patches, concepts, concepts
+        )  # [B, 1+H*W, D_kv], [B, 1+H*W, N]
+
+        # image spatial attention
+        # reshape positional_embedding [1+H*W, D_q] to [1, 1+H*W, D_q]
+        positional_embedding = self.positional_embedding.unsqueeze(0)
+        patches = patches + positional_embedding
+        conceptual_image, image_patch_attention_weight = self.image_patch_attention(
+            patches[:, :1], patches, conceptual_patches
+        )  # [B, 1, D_kv], [B, 1, 1+H*W]
+
+        conceptual_image = conceptual_image.squeeze(1)  # [B, D_kv]
+        image_concept_attention_weight = torch.matmul(
+            image_patch_attention_weight, patch_concept_attention_weight
+        ).squeeze(1)  # [B, N]
+        image_patch_attention_weight = image_patch_attention_weight.squeeze(
+            1)  # [B, 1+H*W]
+
+        # [B, D_kv], [B, N], [B, 1+H*W], [B, 1+H*W, N]
+        return conceptual_image, image_concept_attention_weight, image_patch_attention_weight, patch_concept_attention_weight
+
+
+class OriTextConceptPoolResNet(nn.Module):
+    """
+    A PyTorch model class that implements a ResNet-based image encoder with a
+    text encoder, a concept encoder, a concept pooling layer, and a contrastive
+    loss layer.
+
+    Args:
+        config (Recorder): A configuration object that contains the
+            hyperparameters and settings for the model.
+
+    Attributes:
+        backbone_callable (callable): A callable object that returns a
+            ResNet-based backbone.
+        backbone (nn.Module): A ResNet-based backbone that extracts image
+            features.
+        image_encoder (nn.Sequential): A sequential module that contains the
+            layers of the ResNet-based backbone, except the last two layers.
+        text_encoder (TextEncoderSimulator): A text encoder that encodes class
+            labels into text embeddings.
+        concepts (Concepts): A concept encoder that encodes low-level concepts
+            into concept embeddings.
+        conceptual_pooling (ConceptualPool2d): A concept pooling layer that
+            pools image patches into image embeddings.
+        contrast (ContrastImageTextEmbeds): A contrastive loss layer that
+            computes the similarity between image and text embeddings.
+
+    Methods:
+        parse_config(config: Recorder) -> None:
+            Parses the configuration object and initializes the hyperparameters
+            and settings for the model.
+        build_transform_dim_layer() -> None:
+            Builds a linear layer that transforms the dimension of the text
+            embeddings to match the input dimension of the contrastive loss
+            layer.
+        forward(x: torch.Tensor, classes_idx: List) -> Dict[str, torch.Tensor]:
+            Computes the forward pass of the model given an input tensor and a
+            list of class indices, and returns a dictionary of outputs,
+            including the model's predictions, concept attention weights,
+            patch attention weights, and concept similarity scores.
+    """
+
+    def __init__(self, config: Recorder) -> None:
+        super(OriTextConceptPoolResNet, self).__init__()
+
+        self.parse_config(config=config)
+
+        self.backbone_callable = get_callable_backbone(self.backbone_name)
+        self.backbone = self.backbone_callable(
+            weights=None, num_classes=1
+        )
+        self.image_encoder = nn.Sequential(
+            *list(self.backbone.children())[:-2]
+        )
+
+        self.text_encoder = TextEncoderSimulator(
+            text_embeds_path=self.text_embeds_path
+        )
+
+        self.build_transform_dim_layer()
+
+        self.concepts = Concepts(
+            num_concepts=self.num_concepts,
+            concept_dim=self.concept_dim
+        )
+
+        self.conceptual_pooling = ConceptualPool2d(
+            spacial_dim=self.spacial_dim,
+            feature_dim=self.image_dim,
+            concept_dim=self.concept_dim,
+            image_patch_n_head=self.image_patch_n_head,
+            image_patch_keep_head_dim=self.image_patch_keep_head_dim,
+            image_patch_max_function_name=self.image_patch_max_function_name,
+            image_patch_max_smoothing=self.image_patch_max_smoothing,
+            patch_concept_n_head=self.patch_concept_n_head,
+            patch_concept_keep_head_dim=self.patch_concept_keep_head_dim,
+            patch_concept_max_function_name=self.patch_concept_max_function_name,
+            patch_concept_max_smoothing=self.patch_concept_max_smoothing
+        )
+
+        self.contrast = ContrastImageTextEmbeds(embed_dim=self.contrastive_dim)
+
+    def parse_config(self, config: Recorder) -> None:
+        self.backbone_name = config.get("backbone_name")
+        self.image_dim = config.get("image_dim")
+        self.spacial_dim = config.get("spacial_dim")
+
+        self.text_embeds_path = config.get("text_embeds_path")
+        self.text_dim = config.get("text_dim")
+
+        self.concept_dim = config.get("concept_dim")
+        self.num_concepts = config.get("num_low_concepts")
+        self.norm_concepts = config.get("norm_low_concepts")
+
+        self.image_patch_n_head = config.get("image_patch_num_heads")
+        self.image_patch_keep_head_dim = config.get(
+            "image_patch_keep_head_dim")
+        self.image_patch_max_function_name = config.get(
+            "image_patch_max_function")
+        self.image_patch_max_smoothing = config.get(
+            "image_patch_max_smoothing")
+
+        self.patch_concept_n_head = config.get("patch_low_concept_num_heads")
+        self.patch_concept_keep_head_dim = config.get(
+            "patch_low_concept_keep_head_dim")
+        self.patch_concept_max_function_name = config.get(
+            "patch_low_concept_max_function")
+        self.patch_concept_max_smoothing = config.get(
+            "patch_low_concept_max_smoothing")
+
+        self.contrastive_dim = config.get("contrastive_dim")
+
+    def build_transform_dim_layer(self) -> None:
+        if self.text_dim != self.contrastive_dim:
+            self.text_dim_transformer = nn.Linear(
+                self.text_dim, self.contrastive_dim
+            )
+
+    def forward(self, x: torch.Tensor, classes_idx: List) -> Dict[str, torch.Tensor]:
+        concepts, concept_cosine_similarity = self.concepts(self.norm_concepts)
+
+        image_patches = self.image_encoder(x)
+        assert self.image_dim == image_patches.size(1)
+        image_embeds, image_concept_attention_weight, image_patch_attention_weight, patch_concept_attention_weight = self.conceptual_pooling(
+            image_patches, concepts
+        )
+        assert self.contrastive_dim == image_embeds.size(1)
+
+        text_embeds = self.text_encoder(classes_idx)
+        if self.text_dim != self.contrastive_dim:
+            text_embeds = self.text_dim_transformer(text_embeds)
+
+        outputs = self.contrast(
+            image_embeds=image_embeds, text_embeds=text_embeds
+        )
+
+        return {
+            "outputs": outputs,
+            "image_low_concept_attention_weight": image_concept_attention_weight,
+            "image_patch_attention_weight": image_patch_attention_weight,
+            "patch_low_concept_attention_weight": patch_concept_attention_weight,
+            "low_concept_cosine_similarity": concept_cosine_similarity
+        }
+
+
 MODELS = OrderedDict(
     {
         "OriTextResNet": OriTextResNet,
-        "OriTextConceptualResNet": OriTextConceptualResNet
+        "OriTextConceptualResNet": OriTextConceptualResNet,
+        "OriTextConceptPoolResNet": OriTextConceptPoolResNet
     }
 )

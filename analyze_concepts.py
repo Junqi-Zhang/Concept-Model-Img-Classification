@@ -36,18 +36,27 @@ else:
 config = Recorder()
 
 # dataset
-config.dataset_name = "Sampled_ImageNet_500x1000_500x5_Seed_6"  # 'n02391049'  340, 'n02389026' 339.
+# 'n02391049'  340, 'n02389026' 339.
+config.dataset_name = "Sampled_ImageNet_500x1000_500x5_Seed_6"
 # config.dataset_name = "Sampled_ImageNet_200x1000_200x25_Seed_6"  # 'n02391049' 134
 # config.dataset_name = "Sampled_ImageNet"  # 'n02391049' 83
 config.update(PROVIDED_DATASETS[config.dataset_name])
 # model
-config.use_model = "BasicQuantResNet18V4Smooth"
-config.att_smoothing = 0.2
-config.num_concepts = 500
-config.num_attended_concepts = 100
-config.norm_concepts = False
-config.norm_summary = True
-config.grad_factor = 1
+config.use_model = "OriTextResNet"
+config.backbone_name = "resnet18"
+config.image_dim = 512
+config.image_spacial_dim = 7
+config.text_embeds_path = "pre-trained/imagenet_zeroshot_simple_classifier.pt"
+config.text_dim = 4096
+config.concept_dim = 512
+config.num_low_concepts = 0
+config.norm_low_concepts = False
+config.num_attended_low_concepts = 0
+config.image_low_concept_num_heads = 0
+config.image_low_concept_keep_head_dim = True
+config.image_low_concept_max_function = "sparsemax"
+config.image_low_concept_max_smoothing = 0
+config.contrastive_dim = 512
 # loss
 config.loss_sparsity_weight = 0.02
 config.loss_sparsity_adaptive = False

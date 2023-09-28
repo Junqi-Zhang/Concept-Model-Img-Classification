@@ -30,29 +30,42 @@ from modules.losses import capped_lp_norm_hinge, orthogonality_l2_norm, PIContro
 ##########################
 
 parser = argparse.ArgumentParser(
-    description="Test model's ability of generalization."
+    description="Test model's ability of zero-shot generalization."
 )
 # dataset
 parser.add_argument("--dataset_name", required=True, type=str)
 # model
 parser.add_argument("--warmup_model", default="", type=str)
 parser.add_argument("--warmup_checkpoint_path", default="", type=str)
-parser.add_argument("--text_embeds_path", default="", type=str)
 parser.add_argument("--use_model", required=True, type=str)
-parser.add_argument("--att_smoothing", default=0.0, type=float)
-parser.add_argument("--spacial_dim", default=7, type=int)
-parser.add_argument("--embed_dim", default=512, type=int)
-parser.add_argument("--num_concepts", default=512, type=int)
-parser.add_argument("--num_attended_concepts", default=50, type=int)
-parser.add_argument("--norm_concepts", default="False")
+parser.add_argument("--backbone_name", required=True, type=str)
+parser.add_argument("--image_dim", required=True, type=int)
+parser.add_argument("--image_spacial_dim", default=7, type=int)
+parser.add_argument("--text_embeds_path", default="", type=str)
 parser.add_argument("--concept_dim", default=512, type=int)
-parser.add_argument("--expand_dim", default="False")
-parser.add_argument("--concept_attn_head", default=8, type=int)
-parser.add_argument("--concept_attn_max_fn", default="softmax", type=str)
-parser.add_argument("--patch_attn_head", default=8, type=int)
-parser.add_argument("--patch_attn_max_fn", default="softmax", type=str)
-parser.add_argument("--norm_summary", default="False")
-parser.add_argument("--grad_factor", default=1.0, type=float)
+parser.add_argument("--num_low_concepts", default=512, type=int)
+parser.add_argument("--norm_low_concepts", default="False")
+parser.add_argument("--num_attended_low_concepts", default=256, type=int)
+parser.add_argument("--num_high_concepts", default=64, type=int)
+parser.add_argument("--norm_high_concepts", default="False")
+parser.add_argument("--num_attended_high_concepts", default=8, type=int)
+parser.add_argument("--image_low_concept_num_heads", default=1, type=int)
+parser.add_argument("--image_low_concept_keep_head_dim", default="True")
+parser.add_argument("--image_low_concept_max_function",
+                    default="sparsemax", type=str)
+parser.add_argument("--image_low_concept_max_smoothing",
+                    default=0.0, type=float)
+parser.add_argument("--patch_low_concept_num_heads", default=8, type=int)
+parser.add_argument("--patch_low_concept_keep_head_dim", default="True")
+parser.add_argument("--patch_low_concept_max_function",
+                    default="sparsemax", type=str)
+parser.add_argument("--patch_low_concept_max_smoothing",
+                    default=0.0, type=float)
+parser.add_argument("--image_patch_num_heads", default=1, type=int)
+parser.add_argument("--image_patch_keep_head_dim", default="True")
+parser.add_argument("--image_patch_max_function", default="softmax", type=str)
+parser.add_argument("--image_patch_max_smoothing", default=0.0, type=float)
+parser.add_argument("--contrastive_dim", default=512, type=int)
 # loss
 parser.add_argument("--loss_sparsity_weight", default=0.0, type=float)
 parser.add_argument("--loss_sparsity_adaptive", default="False")
@@ -65,7 +78,7 @@ parser.add_argument("--learning_rate", default=1e-3, type=float)
 parser.add_argument("--weight_decay", default=1e-2, type=float)
 parser.add_argument("--monitor_metric", default="minor_acc_subset", type=str)
 parser.add_argument("--plateau_patience", default=3, type=int)
-parser.add_argument("--early_stop_patience", default=12, type=int)
+parser.add_argument("--early_stop_patience", default=10, type=int)
 # log
 parser.add_argument("--save_interval", default=1, type=int)
 parser.add_argument("--supplementary_description", default="", type=str)
@@ -79,9 +92,13 @@ parser.add_argument("--dataloader_pin_memory", default="True")
 args = parser.parse_args()
 
 # eval boolean args from string
-args.norm_concepts = eval(args.norm_concepts)
-args.norm_summary = eval(args.norm_summary)
-args.expand_dim = eval(args.expand_dim)
+args.norm_low_concepts = eval(args.norm_low_concepts)
+args.norm_high_concepts = eval(args.norm_high_concepts)
+args.image_low_concept_keep_head_dim = eval(
+    args.image_low_concept_keep_head_dim)
+args.patch_low_concept_keep_head_dim = eval(
+    args.patch_low_concept_keep_head_dim)
+args.image_patch_keep_head_dim = eval(args.image_patch_keep_head_dim)
 args.loss_sparsity_adaptive = eval(args.loss_sparsity_adaptive)
 args.dataloader_pin_memory = eval(args.dataloader_pin_memory)
 
@@ -248,15 +265,7 @@ PROVIDED_MODELS = OrderedDict(**MODELS, **MODELS_EXP)
 
 model_parameters = dict(
     {
-        "num_classes": config.num_classes,
-        "num_concepts": config.num_concepts,
-        "norm_concepts": config.norm_concepts,
-        "concept_dim": config.concept_dim,
-        "norm_summary": config.norm_summary,
-        "grad_factor": config.grad_factor,
-        "smoothing": config.att_smoothing,
-        "config": config,
-        "text_embeds": torch.load(config.text_embeds_path).t()
+        "config": config
     }
 )
 
@@ -282,15 +291,34 @@ else:
 criterion = nn.CrossEntropyLoss()
 sparsity_controller = PIController(
     kp=0.001, ki=0.00001,
-    target_metric=config.num_attended_concepts,
+    target_metric=config.num_attended_low_concepts,
     initial_weight=config.loss_sparsity_weight
 )
 
 
 def compute_loss(returned_dict, targets, train=False):
     outputs = returned_dict["outputs"]
-    attention_weights = returned_dict.get("attention_weights", None)
-    concept_similarity = returned_dict.get("concept_similarity", None)
+    low_concept_cosine_similarity = returned_dict.get(
+        "low_concept_cosine_similarity", None
+    )
+    image_low_concept_attention_weight = returned_dict.get(
+        "image_low_concept_attention_weight", None
+    )
+    patch_low_concept_attention_weight = returned_dict.get(
+        "patch_low_concept_attention_weight", None
+    )
+    high_concept_cosine_similarity = returned_dict.get(
+        "high_concept_cosine_similarity", None
+    )
+    image_high_concept_attention_weight = returned_dict.get(
+        "image_high_concept_attention_weight", None
+    )
+    patch_high_concept_attention_weight = returned_dict.get(
+        "patch_high_concept_attention_weight", None
+    )
+    image_patch_attention_weight = returned_dict.get(
+        "image_patch_attention_weight", None
+    )
 
     def normalize_rows(input_tensor, epsilon=1e-10):
         input_tensor = input_tensor.to(torch.float)
@@ -309,19 +337,20 @@ def compute_loss(returned_dict, targets, train=False):
     )  # K * B
     loss_classification = (loss_cls_per_img + loss_img_per_cls) / 2.0
 
-    if (attention_weights is None) and (concept_similarity is None):
-        loss_sparsity = torch.tensor(0.0)
-        loss_diversity = torch.tensor(0.0)
-        loss = loss_classification + config.loss_sparsity_weight * \
-            loss_sparsity + config.loss_diversity_weight * loss_diversity
-        return loss, loss_cls_per_img, loss_img_per_cls, loss_sparsity, loss_diversity
+    if (image_low_concept_attention_weight is None) and (low_concept_cosine_similarity is None):
+        loss_low_sparsity = torch.tensor(0.0)
+        loss_low_diversity = torch.tensor(0.0)
+        loss_high_sparsity = torch.tensor(0.0)
+        loss_high_diversity = torch.tensor(0.0)
+        loss = loss_classification
+        return loss, loss_cls_per_img, loss_img_per_cls, loss_low_sparsity, loss_low_diversity
 
-    loss_sparsity = capped_lp_norm_hinge(
-        attention_weights,
-        target=config.num_attended_concepts,
-        gamma=1.0/config.num_attended_concepts,
+    loss_low_sparsity = capped_lp_norm_hinge(
+        image_low_concept_attention_weight,
+        target=config.num_attended_low_concepts,
+        gamma=1.0/config.num_attended_low_concepts,
         reduction="sum")
-    loss_diversity = orthogonality_l2_norm(concept_similarity)
+    loss_low_diversity = orthogonality_l2_norm(low_concept_cosine_similarity)
 
     def num_attended_concepts_s99(attention_weights):
         with torch.no_grad():
@@ -335,13 +364,13 @@ def compute_loss(returned_dict, targets, train=False):
         return s99
 
     if config.loss_sparsity_adaptive and train:
-        s99 = num_attended_concepts_s99(attention_weights)
+        s99 = num_attended_concepts_s99(image_low_concept_attention_weight)
         config.loss_sparsity_weight = sparsity_controller.update(s99)
 
     loss = loss_classification + config.loss_sparsity_weight * \
-        loss_sparsity + config.loss_diversity_weight * loss_diversity
+        loss_low_sparsity + config.loss_diversity_weight * loss_low_diversity
 
-    return loss, loss_cls_per_img, loss_img_per_cls, loss_sparsity, loss_diversity
+    return loss, loss_cls_per_img, loss_img_per_cls, loss_low_sparsity, loss_low_diversity
 
 
 optimizer = optim.AdamW(
@@ -425,25 +454,27 @@ def run_epoch(desc, model, dataloader, acc_mask_idx, train=False, metric_prefix=
                 acc_subset = (torch.argmax(returned_dict["outputs"].data * mask,
                                            1) == targets).sum() / targets.size(0)
 
-                if returned_dict.get("attention_weights", None) is not None:
+                if returned_dict.get("image_low_concept_attention_weight", None) is not None:
                     attended_concepts_count = torch.sum(
-                        (returned_dict.get("attention_weights").data - 1e-7) > 0,
+                        (returned_dict.get(
+                            "image_low_concept_attention_weight").data - 1e-7) > 0,
                         dim=1
                     ).type(torch.float)
-                    cfi_s10 = torch.quantile(
+                    lcfi_s10 = torch.quantile(
                         attended_concepts_count, 0.10).item()
-                    cfi_s50 = torch.quantile(
+                    lcfi_s50 = torch.quantile(
                         attended_concepts_count, 0.50).item()
-                    cfi_s90 = torch.quantile(
+                    lcfi_s90 = torch.quantile(
                         attended_concepts_count, 0.90).item()
                 else:
-                    cfi_s10 = -1
-                    cfi_s50 = -1
-                    cfi_s90 = -1
+                    lcfi_s10 = -1
+                    lcfi_s50 = -1
+                    lcfi_s90 = -1
 
-                if returned_dict.get("patch_attention", None) is not None:
+                if returned_dict.get("image_patch_attention_weight", None) is not None:
                     attended_patches_count = torch.sum(
-                        (returned_dict.get("patch_attention").data - 1e-7) > 0,
+                        (returned_dict.get(
+                            "image_patch_attention_weight").data - 1e-7) > 0,
                         dim=1
                     ).type(torch.float)
                     pfi_s10 = torch.quantile(
@@ -457,18 +488,22 @@ def run_epoch(desc, model, dataloader, acc_mask_idx, train=False, metric_prefix=
                     pfi_s50 = -1
                     pfi_s90 = -1
 
-                if returned_dict.get("concept_attention", None) is not None:
+                if returned_dict.get("patch_low_concept_attention_weight", None) is not None:
                     patch_concepts_count = torch.sum(
-                        (returned_dict.get("concept_attention").data - 1e-7) > 0,
+                        (returned_dict.get(
+                            "patch_low_concept_attention_weight").data - 1e-7) > 0,
                         dim=2
                     ).type(torch.float)
-                    cfp_s10 = torch.quantile(patch_concepts_count, 0.10).item()
-                    cfp_s50 = torch.quantile(patch_concepts_count, 0.50).item()
-                    cfp_s90 = torch.quantile(patch_concepts_count, 0.90).item()
+                    lcfp_s10 = torch.quantile(
+                        patch_concepts_count, 0.10).item()
+                    lcfp_s50 = torch.quantile(
+                        patch_concepts_count, 0.50).item()
+                    lcfp_s90 = torch.quantile(
+                        patch_concepts_count, 0.90).item()
                 else:
-                    cfp_s10 = -1
-                    cfp_s50 = -1
-                    cfp_s90 = -1
+                    lcfp_s10 = -1
+                    lcfp_s50 = -1
+                    lcfp_s90 = -1
 
             def update_metric_dict(key, value, average=True, verbose=True):
                 if average:
@@ -496,15 +531,15 @@ def run_epoch(desc, model, dataloader, acc_mask_idx, train=False, metric_prefix=
             update_metric_dict(
                 "loss_sps_w", config.loss_sparsity_weight, average=False
             )
-            update_metric_dict("cfi_s10", cfi_s10, verbose=False)
-            update_metric_dict("cfi_s50", cfi_s50, verbose=False)
-            update_metric_dict("cfi_s90", cfi_s90)
+            update_metric_dict("lcfi_s10", lcfi_s10, verbose=False)
+            update_metric_dict("lcfi_s50", lcfi_s50, verbose=False)
+            update_metric_dict("lcfi_s90", lcfi_s90)
             update_metric_dict("pfi_s10", pfi_s10, verbose=False)
             update_metric_dict("pfi_s50", pfi_s50, verbose=False)
             update_metric_dict("pfi_s90", pfi_s90)
-            update_metric_dict("cfp_s10", cfp_s10, verbose=False)
-            update_metric_dict("cfp_s50", cfp_s50, verbose=False)
-            update_metric_dict("cfp_s90", cfp_s90)
+            update_metric_dict("lcfp_s10", lcfp_s10, verbose=False)
+            update_metric_dict("lcfp_s50", lcfp_s50, verbose=False)
+            update_metric_dict("lcfp_s90", lcfp_s90)
 
             pbar.set_postfix(screen_dict)
             pbar.update(1)
@@ -563,12 +598,12 @@ for epoch in range(config.num_epochs):
         f"{current_metric.major_acc_subset:.4f}",
         f"{current_metric.minor_acc:.4f}",
         f"{current_metric.minor_acc_subset:.4f}",
-        f"{current_metric.train_cfi_s90:.1f}",
+        f"{current_metric.train_lcfi_s90:.1f}",
         f"{current_metric.train_pfi_s90:.1f}",
-        f"{current_metric.train_cfp_s90:.1f}",
-        f"{current_metric.val_cfi_s90:.1f}",
+        f"{current_metric.train_lcfp_s90:.1f}",
+        f"{current_metric.val_lcfi_s90:.1f}",
         f"{current_metric.val_pfi_s90:.1f}",
-        f"{current_metric.val_cfp_s90:.1f}",
+        f"{current_metric.val_lcfp_s90:.1f}",
         f"{current_metric.train_loss_dvs:.1f}"
     ]
     model_name = "_".join(model_name_elements) + ".pt"

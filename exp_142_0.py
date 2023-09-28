@@ -15,25 +15,25 @@ parser.add_argument("--gpus", default=[0], type=int, nargs="*")
 
 seed_task_elements = {
     "mode": "standard",
-    "dataset_name": "Sampled_ImageNet_500x1000_200x0_Seed_6",
-    # "warmup_model": "",
-    # "warmup_checkpoint_path": "",
+    "dataset_name": "Sampled_ImageNet_800x500_200x0_Seed_6",
+    "use_model": "OriTextConceptualResNet",
+    "backbone_name": "resnet18",
+    "image_dim": 512,
     "text_embeds_path": "pre-trained/imagenet_zeroshot_simple_classifier.pt",
-    "use_model": "OriTextQuantResNet18",
-    "num_concepts": 500,
-    "num_attended_concepts": 100,
-    "norm_concepts": False,
-    "norm_summary": True,
-    "grad_factor": 1,
-    "att_smoothing": 0.0,
+    "num_low_concepts": 500,
+    "norm_low_concepts": False,
+    "num_attended_low_concepts": 500,
+    "image_low_concept_num_heads": 1,
+    "image_low_concept_max_function": "sparsemax",
+    "image_low_concept_max_smoothing": 0.4,
+    "contrastive_dim": 512,
     "loss_sparsity_weight": 0,
     "loss_sparsity_adaptive": False,
     "loss_diversity_weight": 1.0,
-    "supplementary_description": "Test on zero-shot dataset",
+    "supplementary_description": "Test OriTextConceptualResNet on zero-shot dataset",
     "num_epochs": 1000,
     "warmup_epochs": 10,
     "batch_size": 125,
-    # "batch_size": 75,
     "learning_rate": 5e-4,
     "save_interval": 1
 }
@@ -43,52 +43,32 @@ def generate_tasks(seed_task_elements, parallel, gpus):
 
     tasks = []
 
-    # gpu 0
+    # task 1
     new_task_element = seed_task_elements.copy()
-    new_task_element["dataset_name"] = "Sampled_ImageNet_500x1000_200x0_Seed_8"
     tasks.append(new_task_element)
 
-    # # gpu 1
+    # # task 2
     # new_task_element = seed_task_elements.copy()
-    # new_task_element["num_concepts"] = 250
+    # new_task_element["loss_diversity_weight"] = 0.0
+    # new_task_element["expand_dim"] = True
+    # new_task_element["concept_attn_head"] = 4
+    # new_task_element["concept_attn_max_fn"] = "gumbel"
     # tasks.append(new_task_element)
 
-    # # gpu 2
+    # # task 3
     # new_task_element = seed_task_elements.copy()
-    # new_task_element["num_concepts"] = 500
+    # new_task_element["loss_diversity_weight"] = 0.0
+    # new_task_element["expand_dim"] = True
+    # new_task_element["concept_attn_head"] = 8
+    # new_task_element["concept_attn_max_fn"] = "sparsemax"
     # tasks.append(new_task_element)
 
-    # # gpu 3
+    # # task 4
     # new_task_element = seed_task_elements.copy()
-    # new_task_element["num_concepts"] = 1000
-    # tasks.append(new_task_element)
-
-    # # gpu 4
-    # new_task_element = seed_task_elements.copy()
-    # new_task_element["use_model"] = "BasicQuantResNet18V4Smooth"
-    # new_task_element["num_concepts"] = 50
-    # new_task_element["att_smoothing"] = 0.2
-    # tasks.append(new_task_element)
-
-    # # gpu 5
-    # new_task_element = seed_task_elements.copy()
-    # new_task_element["use_model"] = "BasicQuantResNet18V4Smooth"
-    # new_task_element["num_concepts"] = 250
-    # new_task_element["att_smoothing"] = 0.2
-    # tasks.append(new_task_element)
-
-    # # gpu 6
-    # new_task_element = seed_task_elements.copy()
-    # new_task_element["use_model"] = "BasicQuantResNet18V4Smooth"
-    # new_task_element["num_concepts"] = 500
-    # new_task_element["att_smoothing"] = 0.2
-    # tasks.append(new_task_element)
-
-    # # gpu 7
-    # new_task_element = seed_task_elements.copy()
-    # new_task_element["use_model"] = "BasicQuantResNet18V4Smooth"
-    # new_task_element["num_concepts"] = 1000
-    # new_task_element["att_smoothing"] = 0.2
+    # new_task_element["loss_diversity_weight"] = 1.0
+    # new_task_element["expand_dim"] = True
+    # new_task_element["concept_attn_head"] = 8
+    # new_task_element["concept_attn_max_fn"] = "sparsemax"
     # tasks.append(new_task_element)
 
     if parallel:

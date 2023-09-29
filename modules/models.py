@@ -8,6 +8,24 @@ from typing import Callable, Dict, List, Tuple, Any
 from collections import OrderedDict
 
 
+def normalize_rows(input_tensor: torch.Tensor, epsilon: float = 1e-10) -> torch.Tensor:
+    """
+    Normalize the rows of a tensor.
+
+    Args:
+        input_tensor: The input tensor to be normalized.
+        epsilon: A small value added to the row sums to avoid division by zero.
+
+    Returns:
+        The normalized tensor.
+    """
+    input_tensor = input_tensor.to(torch.float)
+    row_sums = torch.sum(input_tensor, dim=1, keepdim=True)
+    row_sums += epsilon
+    normalized_tensor = input_tensor / row_sums
+    return normalized_tensor
+
+
 def get_callable_backbone(backbone_name: str) -> Callable:
     """
     Returns a callable function for the specified backbone model.
@@ -158,7 +176,9 @@ class ContrastImageTextEmbeds(nn.Module):
 
         # Linear projection layers for image and text embeddings
         self.image_projection = nn.Linear(embed_dim, embed_dim, bias=False)
+        nn.init.xavier_uniform_(self.image_projection.weight)
         self.text_projection = nn.Linear(embed_dim, embed_dim, bias=False)
+        nn.init.xavier_uniform_(self.text_projection.weight)
 
         # Scaling factor for the output
         self.logit_scale = nn.Parameter(torch.tensor(0.0))
@@ -406,13 +426,16 @@ class ModifiedMultiHeadAttention(nn.Module):
 
         if keep_head_dim:
             self.d_head = key_dim
-            self.q_linear = nn.Linear(query_dim, key_dim*n_head)
-            self.k_linear = nn.Linear(key_dim, key_dim*n_head)
+            self.q_linear = nn.Linear(query_dim, key_dim*n_head, bias=False)
+            self.k_linear = nn.Linear(key_dim, key_dim*n_head, bias=False)
         else:
             assert key_dim % n_head == 0
             self.d_head = key_dim // n_head
-            self.q_linear = nn.Linear(query_dim, key_dim)
-            self.k_linear = nn.Linear(key_dim, key_dim)
+            self.q_linear = nn.Linear(query_dim, key_dim, bias=False)
+            self.k_linear = nn.Linear(key_dim, key_dim, bias=False)
+
+        nn.init.xavier_uniform_(self.q_linear.weight)
+        nn.init.xavier_uniform_(self.k_linear.weight)
 
         self.max_function = get_max_function(
             max_function_name=max_function_name,
@@ -725,8 +748,12 @@ class ConceptualPool2d(nn.Module):
         image_patch_attention_weight = image_patch_attention_weight.squeeze(
             1)  # [B, 1+H*W]
 
-        # [B, D_kv], [B, N], [B, 1+H*W], [B, 1+H*W, N]
-        return conceptual_image, image_concept_attention_weight, image_patch_attention_weight, patch_concept_attention_weight
+        return (
+            conceptual_image,  # [B, D_kv]
+            image_concept_attention_weight,  # [B, N]
+            image_patch_attention_weight,  # [B, 1+H*W]
+            patch_concept_attention_weight  # [B, 1+H*W, N]
+        )
 
 
 class OriTextConceptPoolResNet(nn.Module):
@@ -770,7 +797,7 @@ class OriTextConceptPoolResNet(nn.Module):
             patch attention weights, and concept similarity scores.
     """
 
-    def __init__(self, config: Recorder) -> None:
+    def __init__(self, config: Recorder):
         super(OriTextConceptPoolResNet, self).__init__()
 
         self.parse_config(config=config)
@@ -813,7 +840,7 @@ class OriTextConceptPoolResNet(nn.Module):
     def parse_config(self, config: Recorder) -> None:
         self.backbone_name = config.get("backbone_name")
         self.image_dim = config.get("image_dim")
-        self.spacial_dim = config.get("spacial_dim")
+        self.spacial_dim = config.get("image_spacial_dim")
 
         self.text_embeds_path = config.get("text_embeds_path")
         self.text_dim = config.get("text_dim")
@@ -873,10 +900,313 @@ class OriTextConceptPoolResNet(nn.Module):
         }
 
 
+class HierarchicalConcepts(nn.Module):
+    """
+    A PyTorch module for learning hierarchical concepts.
+
+    Args:
+        num_low_concepts (int): The number of low-level concepts.
+        num_high_concepts (int): The number of high-level concepts.
+        concept_dim (int): The dimensionality of the concept vectors.
+        output_high_concepts_type (str): The type of output high-level concepts.
+            Must be one of "original_high", "high_plus_low", or "aggregated_low".
+
+    Attributes:
+        low_concepts (Concepts): The low-level concepts module.
+        high_concepts (Concepts): The high-level concepts module.
+        concept_hierarchy_builder (ModifiedMultiHeadAttention): The module for
+            building the hierarchy between low-level and high-level concepts.
+        output_high_concepts_type (str): The type of output high-level concepts.
+
+    Methods:
+        forward(norm_low_concepts: bool, norm_high_concepts: bool) -> Tuple:
+            Computes the forward pass of the hierarchical concepts module.
+
+    """
+
+    def __init__(self,
+                 num_low_concepts: int,
+                 num_high_concepts: int,
+                 concept_dim: int,
+                 output_high_concepts_type: str):
+        super(HierarchicalConcepts, self).__init__()
+
+        self.low_concepts = Concepts(
+            num_concepts=num_low_concepts,
+            concept_dim=concept_dim
+        )
+        self.high_concepts = Concepts(
+            num_concepts=num_high_concepts,
+            concept_dim=concept_dim
+        )
+
+        self.concept_hierarchy_builder = ModifiedMultiHeadAttention(
+            query_dim=concept_dim,
+            key_dim=concept_dim,
+            n_head=1,
+            keep_head_dim=True,
+            max_function_name="hard_gumbel",
+            max_smoothing=0.0
+        )
+        self.output_high_concepts_type = output_high_concepts_type
+
+    def forward(self, norm_low_concepts: bool, norm_high_concepts: bool) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+        """
+        Computes the forward pass of the hierarchical concepts module.
+
+        Args:
+            norm_low_concepts (bool): Whether to normalize the low-level concepts.
+            norm_high_concepts (bool): Whether to normalize the high-level concepts.
+
+        Returns:
+            A tuple containing the following elements:
+            - low_concepts (Tensor): The low-level concepts.
+            - low_concept_cosine_similarity (Tensor): The cosine similarity between
+              the low-level concepts and the input features.
+            - output_high_concepts (Tensor): The output high-level concepts.
+            - high_concept_cosine_similarity (Tensor): The cosine similarity between
+              the high-level concepts and the input features.
+            - low_high_hierarchy (Tensor): The hierarchy between low-level and
+              high-level concepts.
+
+        """
+        low_concepts, low_concept_cosine_similarity = self.low_concepts(
+            norm_low_concepts
+        )
+        high_concepts, high_concept_cosine_similarity = self.high_concepts(
+            norm_high_concepts
+        )
+
+        _, low_high_hierarchy = self.concept_hierarchy_builder(
+            low_concepts.unsqueeze(0),  # [1, N_low, D]
+            high_concepts.unsqueeze(0),  # [1, N_high, D]
+            high_concepts.unsqueeze(0)  # [1, N_high, D]
+        )  # [1, N_low, N_high]
+
+        low_high_hierarchy = low_high_hierarchy.squeeze(0)  # [N_low, N_high]
+
+        if self.output_high_concepts_type == "original_high":
+            output_high_concepts = high_concepts
+        else:
+            high_low_hierarchy = low_high_hierarchy.t()  # [N_high, N_low]
+            output_high_concepts = torch.matmul(
+                normalize_rows(high_low_hierarchy), low_concepts
+            )  # [N_high, D]
+            if self.output_high_concepts_type == "high_plus_low":
+                output_high_concepts = output_high_concepts + high_concepts
+            else:
+                assert self.output_high_concepts_type == "aggregated_low"
+
+        return (
+            low_concepts,  # [N_low, D]
+            low_concept_cosine_similarity,
+            output_high_concepts,  # [N_high, D]
+            high_concept_cosine_similarity,
+            low_high_hierarchy  # [N_low, N_high]
+        )
+
+
+class HierarchicalConceptualPool2d(nn.Module):
+    def __init__(self,
+                 spacial_dim: int,
+                 feature_dim: int,
+                 concept_dim: int,
+                 image_patch_n_head: int,
+                 image_patch_keep_head_dim: bool,
+                 image_patch_max_function_name: str,
+                 image_patch_max_smoothing: float,
+                 patch_concept_n_head: int,
+                 patch_concept_keep_head_dim: bool,
+                 patch_concept_max_function_name: str,
+                 patch_concept_max_smoothing: float):
+        super(HierarchicalConceptualPool2d, self).__init__()
+
+        self.conceptual_pooling = ConceptualPool2d(
+            spacial_dim=spacial_dim,
+            feature_dim=feature_dim,
+            concept_dim=concept_dim,
+            image_patch_n_head=image_patch_n_head,
+            image_patch_keep_head_dim=image_patch_keep_head_dim,
+            image_patch_max_function_name=image_patch_max_function_name,
+            image_patch_max_smoothing=image_patch_max_smoothing,
+            patch_concept_n_head=patch_concept_n_head,
+            patch_concept_keep_head_dim=patch_concept_keep_head_dim,
+            patch_concept_max_function_name=patch_concept_max_function_name,
+            patch_concept_max_smoothing=patch_concept_max_smoothing
+        )
+
+    def forward(self, patches: torch.Tensor, low_concepts: torch.Tensor, high_concepts: torch.Tensor, low_high_hierarchy: torch.Tensor):
+        (
+            low_conceptual_image,  # [B, D_kv]
+            image_low_concept_attention_weight,  # [B, N_low]
+            image_patch_attention_weight,  # [B, 1+H*W]
+            patch_low_concept_attention_weight  # [B, 1+H*W, N_low]
+        ) = self.conceptual_pooling(patches, low_concepts)
+
+        image_high_concept_attention_weight = torch.matmul(
+            image_low_concept_attention_weight, low_high_hierarchy
+        )  # [B, N_high]
+        patch_high_concept_attention_weight = torch.matmul(
+            patch_low_concept_attention_weight, low_high_hierarchy
+        )  # [B, 1+H*W, N_high]
+        high_conceptual_image = torch.matmul(
+            image_high_concept_attention_weight, high_concepts
+        )  # [B, D_kv]
+
+        return (
+            low_conceptual_image,
+            high_conceptual_image,
+            image_patch_attention_weight,
+            image_low_concept_attention_weight,
+            image_high_concept_attention_weight,
+            patch_low_concept_attention_weight,
+            patch_high_concept_attention_weight
+        )
+
+
+class OriTextHierarchicalConceptualPoolResNet(nn.Module):
+    def __init__(self, config: Recorder):
+        super(OriTextHierarchicalConceptualPoolResNet, self).__init__()
+
+        self.parse_config(config=config)
+
+        self.backbone_callable = get_callable_backbone(self.backbone_name)
+        self.backbone = self.backbone_callable(
+            weights=None, num_classes=1
+        )
+        self.image_encoder = nn.Sequential(
+            *list(self.backbone.children())[:-2]
+        )
+
+        self.text_encoder = TextEncoderSimulator(
+            text_embeds_path=self.text_embeds_path
+        )
+
+        self.build_transform_dim_layer()
+
+        self.hierarchical_concepts = HierarchicalConcepts(
+            num_low_concepts=self.num_low_concepts,
+            num_high_concepts=self.num_high_concepts,
+            concept_dim=self.concept_dim,
+            output_high_concepts_type=self.output_high_concepts_type
+        )
+
+        self.hierarchical_conceptual_pooling = HierarchicalConceptualPool2d(
+            spacial_dim=self.spacial_dim,
+            feature_dim=self.image_dim,
+            concept_dim=self.concept_dim,
+            image_patch_n_head=self.image_patch_n_head,
+            image_patch_keep_head_dim=self.image_patch_keep_head_dim,
+            image_patch_max_function_name=self.image_patch_max_function_name,
+            image_patch_max_smoothing=self.image_patch_max_smoothing,
+            patch_concept_n_head=self.patch_concept_n_head,
+            patch_concept_keep_head_dim=self.patch_concept_keep_head_dim,
+            patch_concept_max_function_name=self.patch_concept_max_function_name,
+            patch_concept_max_smoothing=self.patch_concept_max_smoothing
+        )
+
+        self.contrast = ContrastImageTextEmbeds(embed_dim=self.contrastive_dim)
+
+    def parse_config(self, config: Recorder) -> None:
+        self.backbone_name = config.get("backbone_name")
+        self.image_dim = config.get("image_dim")
+        self.spacial_dim = config.get("image_spacial_dim")
+
+        self.text_embeds_path = config.get("text_embeds_path")
+        self.text_dim = config.get("text_dim")
+
+        self.concept_dim = config.get("concept_dim")
+        self.num_low_concepts = config.get("num_low_concepts")
+        self.norm_low_concepts = config.get("norm_low_concepts")
+        self.num_high_concepts = config.get("num_high_concepts")
+        self.norm_high_concepts = config.get("norm_high_concepts")
+        self.output_high_concepts_type = config.get(
+            "output_high_concepts_type")
+
+        self.image_patch_n_head = config.get("image_patch_num_heads")
+        self.image_patch_keep_head_dim = config.get(
+            "image_patch_keep_head_dim")
+        self.image_patch_max_function_name = config.get(
+            "image_patch_max_function")
+        self.image_patch_max_smoothing = config.get(
+            "image_patch_max_smoothing")
+
+        self.patch_concept_n_head = config.get("patch_low_concept_num_heads")
+        self.patch_concept_keep_head_dim = config.get(
+            "patch_low_concept_keep_head_dim")
+        self.patch_concept_max_function_name = config.get(
+            "patch_low_concept_max_function")
+        self.patch_concept_max_smoothing = config.get(
+            "patch_low_concept_max_smoothing")
+
+        self.contrastive_dim = config.get("contrastive_dim")
+
+    def build_transform_dim_layer(self) -> None:
+        if self.text_dim != self.contrastive_dim:
+            self.text_dim_transformer = nn.Linear(
+                self.text_dim, self.contrastive_dim
+            )
+
+    def forward(self, x: torch.Tensor, classes_idx: List) -> Dict[str, torch.Tensor]:
+        (
+            low_concepts,  # [N_low, D]
+            low_concept_cosine_similarity,
+            high_concepts,  # [N_high, D]
+            high_concept_cosine_similarity,
+            low_high_hierarchy  # [N_low, N_high]
+        ) = self.hierarchical_concepts(
+            norm_low_concepts=self.norm_low_concepts,
+            norm_high_concepts=self.norm_high_concepts
+        )
+
+        image_patches = self.image_encoder(x)
+        assert self.image_dim == image_patches.size(1)
+        (
+            low_conceptual_image,  # [B, D_kv]
+            high_conceptual_image,  # [B, D_kv]
+            image_patch_attention_weight,  # [B, 1+H*W]
+            image_low_concept_attention_weight,  # [B, N_low]
+            image_high_concept_attention_weight,  # [B, N_high]
+            patch_low_concept_attention_weight,  # [B, 1+H*W, N_low]
+            patch_high_concept_attention_weight  # [B, 1+H*W, N_high]
+        ) = self.hierarchical_conceptual_pooling(
+            image_patches, low_concepts, high_concepts, low_high_hierarchy
+        )
+        assert self.concept_dim == low_conceptual_image.size(1)
+        assert self.concept_dim == high_conceptual_image.size(1)
+
+        text_embeds = self.text_encoder(classes_idx)
+        if self.text_dim != self.contrastive_dim:
+            text_embeds = self.text_dim_transformer(text_embeds)
+
+        outputs = self.contrast(
+            image_embeds=low_conceptual_image,
+            text_embeds=text_embeds
+        )
+        aux_outputs = self.contrast(
+            image_embeds=high_conceptual_image,
+            text_embeds=text_embeds
+        )
+
+        return {
+            "outputs": outputs,
+            "aux_outputs": aux_outputs,
+            "image_patch_attention_weight": image_patch_attention_weight,
+            "image_low_concept_attention_weight": image_low_concept_attention_weight,
+            "image_high_concept_attention_weight": image_high_concept_attention_weight,
+            "patch_low_concept_attention_weight": patch_low_concept_attention_weight,
+            "patch_high_concept_attention_weight": patch_high_concept_attention_weight,
+            "low_concept_cosine_similarity": low_concept_cosine_similarity,
+            "high_concept_cosine_similarity": high_concept_cosine_similarity,
+            "low_high_hierarchy": low_high_hierarchy
+        }
+
+
 MODELS = OrderedDict(
     {
         "OriTextResNet": OriTextResNet,
         "OriTextConceptualResNet": OriTextConceptualResNet,
-        "OriTextConceptPoolResNet": OriTextConceptPoolResNet
+        "OriTextConceptPoolResNet": OriTextConceptPoolResNet,
+        "OriTextHierarchicalConceptualPoolResNet": OriTextHierarchicalConceptualPoolResNet
     }
 )

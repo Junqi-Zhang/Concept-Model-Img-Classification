@@ -24,7 +24,7 @@ seed_task_elements = {
     "norm_low_concepts": False,
     "num_attended_low_concepts": 500,
     "patch_low_concept_num_heads": 1,
-    "patch_low_concept_max_function": "sparsemax",
+    "patch_low_concept_max_function": "gumbel",
     "patch_low_concept_max_smoothing": 0.0,
     "image_patch_num_heads": 1,
     "image_patch_max_function": "softmax",
@@ -52,7 +52,7 @@ def generate_tasks(seed_task_elements, parallel, gpus):
 
     # task 2
     new_task_element = seed_task_elements.copy()
-    new_task_element["patch_low_concept_num_heads"] = 8
+    new_task_element["patch_low_concept_num_heads"] = 2
     tasks.append(new_task_element)
 
     # # task 3

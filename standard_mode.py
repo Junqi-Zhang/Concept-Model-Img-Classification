@@ -105,7 +105,8 @@ args.image_low_concept_keep_head_dim = eval(
 args.patch_low_concept_keep_head_dim = eval(
     args.patch_low_concept_keep_head_dim)
 args.image_patch_keep_head_dim = eval(args.image_patch_keep_head_dim)
-args.loss_sparsity_adaptive = eval(args.loss_sparsity_adaptive)
+args.loss_low_sparsity_adaptive = eval(args.loss_low_sparsity_adaptive)
+args.loss_high_sparsity_adaptive = eval(args.loss_high_sparsity_adaptive)
 args.dataloader_pin_memory = eval(args.dataloader_pin_memory)
 
 ##########################

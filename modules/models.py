@@ -176,12 +176,16 @@ class ContrastImageTextEmbeds(nn.Module):
 
         # Linear projection layers for image and text embeddings
         self.image_projection = nn.Linear(embed_dim, embed_dim, bias=False)
-        nn.init.xavier_uniform_(self.image_projection.weight)
         self.text_projection = nn.Linear(embed_dim, embed_dim, bias=False)
-        nn.init.xavier_uniform_(self.text_projection.weight)
 
         # Scaling factor for the output
         self.logit_scale = nn.Parameter(torch.tensor(0.0))
+
+        self.init_parameters()
+
+    def init_parameters(self) -> None:
+        nn.init.xavier_uniform_(self.image_projection.weight)
+        nn.init.xavier_uniform_(self.text_projection.weight)
 
     def forward(self, image_embeds: torch.Tensor, text_embeds: torch.Tensor) -> torch.Tensor:
         """
@@ -356,7 +360,6 @@ class Concepts(nn.Module):
         self.concepts = nn.Parameter(
             torch.Tensor(num_concepts, concept_dim)
         )
-
         nn.init.xavier_uniform_(self.concepts)
 
     def forward(self, norm_concepts: bool) -> Tuple[torch.Tensor, torch.Tensor]:
@@ -695,10 +698,8 @@ class ConceptualPool2d(nn.Module):
 
         # positional embedding initialization
         self.positional_embedding = nn.Parameter(
-            torch.Tensor(spacial_dim ** 2 + 1, feature_dim)
+            torch.randn(spacial_dim ** 2 + 1, feature_dim) / feature_dim ** 0.5
         )
-        nn.init.xavier_uniform_(self.positional_embedding)
-
         # image spatial attention
         self.image_patch_attention = ModifiedMultiHeadAttention(
             query_dim=feature_dim,

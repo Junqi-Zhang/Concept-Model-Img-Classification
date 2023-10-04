@@ -16,27 +16,35 @@ parser.add_argument("--gpus", default=[0], type=int, nargs="*")
 seed_task_elements = {
     "mode": "standard",
     "dataset_name": "Sampled_ImageNet_800x500_200x0_Seed_6",
-    "use_model": "OriTextConceptPoolResNet",
+    "use_model": "OriTextHierarchicalConceptualPoolResNet",
     "backbone_name": "resnet18",
     "image_dim": 512,
     "text_embeds_path": "pre-trained/imagenet_zeroshot_simple_classifier.pt",
-    "num_low_concepts": 500,
+    "num_low_concepts": 512,
     "norm_low_concepts": False,
-    "num_attended_low_concepts": 500,
-    "patch_low_concept_num_heads": 4,
-    "patch_low_concept_max_function": "hard_gumbel",
+    "num_attended_low_concepts": 512,
+    "num_high_concepts": 64,
+    "norm_high_concepts": False,
+    "num_attended_high_concepts": 64,
+    "output_high_concepts_type": "aggregated_low",
+    "patch_low_concept_num_heads": 1,
+    "patch_low_concept_max_function": "sparsemax",
     "patch_low_concept_max_smoothing": 0.0,
     "image_patch_num_heads": 1,
     "image_patch_max_function": "softmax",
     "image_patch_max_smoothing": 0.0,
     "contrastive_dim": 512,
-    "loss_sparsity_weight": 0,
-    "loss_sparsity_adaptive": False,
-    "loss_diversity_weight": 0,
-    "supplementary_description": "Test OriTextConceptPoolResNet on zero-shot dataset",
+    "loss_low_sparsity_weight": 0.0,
+    "loss_low_sparsity_adaptive": False,
+    "loss_low_diversity_weight": 0.0,
+    "loss_high_sparsity_weight": 0.0,
+    "loss_high_sparsity_adaptive": False,
+    "loss_high_diversity_weight": 0.0,
+    "loss_aux_classification_weight": 0.0,
+    "supplementary_description": "Test OriTextHierarchicalConceptualPoolResNet on zero-shot dataset",
     "num_epochs": 1000,
     "warmup_epochs": 10,
-    "batch_size": 125,
+    "batch_size": 128,
     "learning_rate": 5e-4,
     "save_interval": 1
 }
@@ -50,25 +58,19 @@ def generate_tasks(seed_task_elements, parallel, gpus):
     new_task_element = seed_task_elements.copy()
     tasks.append(new_task_element)
 
-    # task 2
-    new_task_element = seed_task_elements.copy()
-    new_task_element["patch_low_concept_num_heads"] = 8
-    tasks.append(new_task_element)
+    # # task 2
+    # new_task_element = seed_task_elements.copy()
+    # new_task_element["patch_low_concept_max_smoothing"] = 0.3
+    # tasks.append(new_task_element)
 
     # # task 3
     # new_task_element = seed_task_elements.copy()
-    # new_task_element["loss_diversity_weight"] = 0.0
-    # new_task_element["expand_dim"] = True
-    # new_task_element["concept_attn_head"] = 8
-    # new_task_element["concept_attn_max_fn"] = "sparsemax"
+    # new_task_element["norm_low_concepts"] = True
     # tasks.append(new_task_element)
 
     # # task 4
     # new_task_element = seed_task_elements.copy()
-    # new_task_element["loss_diversity_weight"] = 1.0
-    # new_task_element["expand_dim"] = True
-    # new_task_element["concept_attn_head"] = 8
-    # new_task_element["concept_attn_max_fn"] = "sparsemax"
+    # new_task_element["loss_low_diversity_weight"] = 1.0
     # tasks.append(new_task_element)
 
     if parallel:

@@ -706,7 +706,7 @@ for epoch in range(config.num_epochs):
         f"{current_metric.major_lcfp_s90:.0f}",
         f"{current_metric.major_hcfp_s90:.0f}",
         f"{current_metric.major_lfh_s90:.0f}",
-        f"{current_metric.major_L_ldvs:.1f}"
+        f"{current_metric.major_L_ldvs:.1f}",
         f"{current_metric.major_L_hdvs:.1f}"
     ]
     model_name = "_".join(model_name_elements) + ".pt"

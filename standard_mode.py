@@ -83,7 +83,7 @@ parser.add_argument("--warmup_epochs", default=10, type=int)
 parser.add_argument("--batch_size", default=256, type=int)
 parser.add_argument("--learning_rate", default=1e-3, type=float)
 parser.add_argument("--weight_decay", default=1e-2, type=float)
-parser.add_argument("--monitor_metric", default="minor_acc_subset", type=str)
+parser.add_argument("--monitor_metric", default="minor_A_sub", type=str)
 parser.add_argument("--plateau_patience", default=3, type=int)
 parser.add_argument("--early_stop_patience", default=10, type=int)
 # log

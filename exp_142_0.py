@@ -16,21 +16,33 @@ parser.add_argument("--gpus", default=[0], type=int, nargs="*")
 seed_task_elements = {
     "mode": "standard",
     "dataset_name": "Sampled_ImageNet_800x500_200x0_Seed_6",
-    "use_model": "OriTextResNet",
+    "use_model": "OriTextHierarchicalConceptualPoolResNet",
     "backbone_name": "resnet18",
     "image_dim": 512,
     "text_embeds_path": "pre-trained/imagenet_zeroshot_simple_classifier.pt",
-    "num_low_concepts": 0,
+    "num_low_concepts": 512,
     "norm_low_concepts": False,
-    "num_attended_low_concepts": 0,
-    "image_low_concept_num_heads": 0,
-    "image_low_concept_max_function": "",
-    "image_low_concept_max_smoothing": 0,
+    "num_attended_low_concepts": 512,
+    "num_high_concepts": 64,
+    "norm_high_concepts": False,
+    "num_attended_high_concepts": 64,
+    "low_high_max_function": "hard_gumbel",
+    "output_high_concepts_type": "aggregated_low",
+    "patch_low_concept_num_heads": 1,
+    "patch_low_concept_max_function": "sparsemax",
+    "patch_low_concept_max_smoothing": 0.0,
+    "image_patch_num_heads": 1,
+    "image_patch_max_function": "softmax",
+    "image_patch_max_smoothing": 0.0,
     "contrastive_dim": 512,
-    "loss_low_sparsity_weight": 0,
+    "loss_low_sparsity_weight": 0.0,
     "loss_low_sparsity_adaptive": False,
-    "loss_low_diversity_weight": 0,
-    "supplementary_description": "Test OriTextResNet on zero-shot dataset",
+    "loss_low_diversity_weight": 0.0,
+    "loss_high_sparsity_weight": 0.0,
+    "loss_high_sparsity_adaptive": False,
+    "loss_high_diversity_weight": 0.0,
+    "loss_aux_classification_weight": 0.0,
+    "supplementary_description": "Test OriTextHierarchicalConceptualPoolResNet on zero-shot dataset",
     "num_epochs": 1000,
     "warmup_epochs": 10,
     "batch_size": 128,
@@ -49,37 +61,46 @@ def generate_tasks(seed_task_elements, parallel, gpus):
 
     # task 2
     new_task_element = seed_task_elements.copy()
-    new_task_element["use_model"] = "OriTextConceptualResNet"
-    new_task_element["num_low_concepts"] = 512
-    new_task_element["num_attended_low_concepts"] = 512
-    new_task_element["image_low_concept_num_heads"] = 1
-    new_task_element["image_low_concept_max_function"] = "softmax"
-    new_task_element["loss_low_diversity_weight"] = 1.0
-    new_task_element["supplementary_description"] = "Test OriTextConceptualResNet on zero-shot dataset"
+    new_task_element["loss_high_diversity_weight"] = 1.0
     tasks.append(new_task_element)
 
     # task 3
     new_task_element = seed_task_elements.copy()
-    new_task_element["use_model"] = "OriTextConceptualResNet"
-    new_task_element["num_low_concepts"] = 512
-    new_task_element["num_attended_low_concepts"] = 512
-    new_task_element["image_low_concept_num_heads"] = 1
-    new_task_element["image_low_concept_max_function"] = "sparsemax"
-    new_task_element["image_low_concept_max_smoothing"] = 0.0
-    new_task_element["loss_low_diversity_weight"] = 1.0
-    new_task_element["supplementary_description"] = "Test OriTextConceptualResNet on zero-shot dataset"
+    new_task_element["num_attended_high_concepts"] = 16
+    new_task_element["loss_high_sparsity_weight"] = 0.01
     tasks.append(new_task_element)
 
     # task 4
     new_task_element = seed_task_elements.copy()
-    new_task_element["use_model"] = "OriTextConceptualResNet"
-    new_task_element["num_low_concepts"] = 512
-    new_task_element["num_attended_low_concepts"] = 512
-    new_task_element["image_low_concept_num_heads"] = 1
-    new_task_element["image_low_concept_max_function"] = "sparsemax"
-    new_task_element["image_low_concept_max_smoothing"] = 0.1
-    new_task_element["loss_low_diversity_weight"] = 1.0
-    new_task_element["supplementary_description"] = "Test OriTextConceptualResNet on zero-shot dataset"
+    new_task_element["loss_high_diversity_weight"] = 1.0
+    new_task_element["num_attended_high_concepts"] = 16
+    new_task_element["loss_high_sparsity_weight"] = 0.01
+    tasks.append(new_task_element)
+
+    # task 5
+    new_task_element = seed_task_elements.copy()
+    new_task_element["output_high_concepts_type"] = "original_high"
+    tasks.append(new_task_element)
+
+    # task 6
+    new_task_element = seed_task_elements.copy()
+    new_task_element["output_high_concepts_type"] = "original_high"
+    new_task_element["loss_high_diversity_weight"] = 1.0
+    tasks.append(new_task_element)
+
+    # task 7
+    new_task_element = seed_task_elements.copy()
+    new_task_element["output_high_concepts_type"] = "original_high"
+    new_task_element["num_attended_high_concepts"] = 16
+    new_task_element["loss_high_sparsity_weight"] = 0.01
+    tasks.append(new_task_element)
+
+    # task 8
+    new_task_element = seed_task_elements.copy()
+    new_task_element["output_high_concepts_type"] = "original_high"
+    new_task_element["loss_high_diversity_weight"] = 1.0
+    new_task_element["num_attended_high_concepts"] = 16
+    new_task_element["loss_high_sparsity_weight"] = 0.01
     tasks.append(new_task_element)
 
     if parallel:

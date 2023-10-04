@@ -50,6 +50,7 @@ parser.add_argument("--num_attended_low_concepts", default=0, type=int)
 parser.add_argument("--num_high_concepts", default=0, type=int)
 parser.add_argument("--norm_high_concepts", default="False")
 parser.add_argument("--num_attended_high_concepts", default=0, type=int)
+parser.add_argument("--low_high_max_function", default="", type=str)
 parser.add_argument("--output_high_concepts_type", default="", type=str)
 parser.add_argument("--image_low_concept_num_heads", default=0, type=int)
 parser.add_argument("--image_low_concept_keep_head_dim", default="True")
@@ -559,6 +560,11 @@ def run_epoch(desc, model, dataloader, acc_mask_idx, train=False, metric_prefix=
                 acc_subset = (torch.argmax(returned_dict["outputs"].data * mask,
                                            1) == targets).sum() / targets.size(0)
 
+                aux_acc = (torch.argmax(returned_dict["aux_outputs"].data,
+                                        1) == targets).sum() / targets.size(0)
+                aux_acc_subset = (torch.argmax(returned_dict["aux_outputs"].data * mask,
+                                               1) == targets).sum() / targets.size(0)
+
                 pfi_s10, pfi_s50, pfi_s90 = custom_quantile(
                     returned_dict=returned_dict,
                     key="image_patch_attention_weight",
@@ -570,25 +576,25 @@ def run_epoch(desc, model, dataloader, acc_mask_idx, train=False, metric_prefix=
                     key="image_low_concept_attention_weight",
                     dim=1
                 )
-                
+
                 hcfi_s10, hcfi_s50, hcfi_s90 = custom_quantile(
                     returned_dict=returned_dict,
                     key="image_high_concept_attention_weight",
                     dim=1
                 )
-                
+
                 lcfp_s10, lcfp_s50, lcfp_s90 = custom_quantile(
                     returned_dict=returned_dict,
                     key="patch_low_concept_attention_weight",
                     dim=2
                 )
-                
+
                 hcfp_s10, hcfp_s50, hcfp_s90 = custom_quantile(
                     returned_dict=returned_dict,
                     key="patch_high_concept_attention_weight",
                     dim=2
                 )
-                
+
                 lfh_s10, lfh_s50, lfh_s90 = custom_quantile(
                     returned_dict=returned_dict,
                     key="low_high_hierarchy",
@@ -611,8 +617,10 @@ def run_epoch(desc, model, dataloader, acc_mask_idx, train=False, metric_prefix=
                     if verbose:
                         screen_dict[key] = value
 
-            update_metric_dict("acc", acc.item())
-            update_metric_dict("acc_subset", acc_subset.item())
+            update_metric_dict("A", acc.item())
+            update_metric_dict("A_sub", acc_subset.item())
+            update_metric_dict("A_aux", aux_acc.item())
+            update_metric_dict("A_auxsub", aux_acc_subset.item())
             update_metric_dict("L", loss.item())
             update_metric_dict("L_cls", loss_classification.item())
             update_metric_dict("L_aux", loss_aux_classification.item())
@@ -698,8 +706,9 @@ for epoch in range(config.num_epochs):
     model_name_elements = [
         "epoch",
         f"{current_metric.epoch}",
-        f"{current_metric.train_acc:.4f}",
-        f"{current_metric.minor_acc_subset:.4f}",
+        f"{current_metric.train_A:.4f}",
+        f"{current_metric.minor_A_sub:.4f}",
+        f"{current_metric.minor_A_auxsub:.4f}",
         f"{current_metric.major_pfi_s90:.0f}",
         f"{current_metric.major_lcfi_s90:.0f}",
         f"{current_metric.major_hcfi_s90:.0f}",

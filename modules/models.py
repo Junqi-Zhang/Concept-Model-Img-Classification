@@ -909,6 +909,7 @@ class HierarchicalConcepts(nn.Module):
         num_low_concepts (int): The number of low-level concepts.
         num_high_concepts (int): The number of high-level concepts.
         concept_dim (int): The dimensionality of the concept vectors.
+        low_high_max_function (str): The max function of the low-to-high mapping.
         output_high_concepts_type (str): The type of output high-level concepts.
             Must be one of "original_high", "high_plus_low", or "aggregated_low".
 
@@ -929,6 +930,7 @@ class HierarchicalConcepts(nn.Module):
                  num_low_concepts: int,
                  num_high_concepts: int,
                  concept_dim: int,
+                 low_high_max_function: str,
                  output_high_concepts_type: str):
         super(HierarchicalConcepts, self).__init__()
 
@@ -946,7 +948,7 @@ class HierarchicalConcepts(nn.Module):
             key_dim=concept_dim,
             n_head=1,
             keep_head_dim=True,
-            max_function_name="hard_gumbel",
+            max_function_name=low_high_max_function,
             max_smoothing=0.0
         )
         self.output_high_concepts_type = output_high_concepts_type
@@ -1089,6 +1091,7 @@ class OriTextHierarchicalConceptualPoolResNet(nn.Module):
             num_low_concepts=self.num_low_concepts,
             num_high_concepts=self.num_high_concepts,
             concept_dim=self.concept_dim,
+            low_high_max_function=self.low_high_max_function,
             output_high_concepts_type=self.output_high_concepts_type
         )
 
@@ -1121,6 +1124,7 @@ class OriTextHierarchicalConceptualPoolResNet(nn.Module):
         self.norm_low_concepts = config.get("norm_low_concepts")
         self.num_high_concepts = config.get("num_high_concepts")
         self.norm_high_concepts = config.get("norm_high_concepts")
+        self.low_high_max_function = config.get("low_high_max_function")
         self.output_high_concepts_type = config.get(
             "output_high_concepts_type")
 

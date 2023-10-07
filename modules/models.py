@@ -1117,6 +1117,9 @@ class OriTextHierarchicalConceptualPoolResNet(nn.Module):
         )
 
         self.contrast = ContrastImageTextEmbeds(embed_dim=self.contrastive_dim)
+        self.aux_contrast = ContrastImageTextEmbeds(
+            embed_dim=self.contrastive_dim
+        )
 
     def parse_config(self, config: Recorder) -> None:
         self.backbone_name = config.get("backbone_name")
@@ -1125,6 +1128,7 @@ class OriTextHierarchicalConceptualPoolResNet(nn.Module):
 
         self.text_embeds_path = config.get("text_embeds_path")
         self.text_dim = config.get("text_dim")
+        self.detach_text_embeds = config.get("detach_text_embeds")
 
         self.concept_dim = config.get("concept_dim")
         self.num_low_concepts = config.get("num_low_concepts")
@@ -1191,14 +1195,15 @@ class OriTextHierarchicalConceptualPoolResNet(nn.Module):
         text_embeds = self.text_encoder(classes_idx)
         if self.text_dim != self.contrastive_dim:
             text_embeds = self.text_dim_transformer(text_embeds)
-
         outputs = self.contrast(
             image_embeds=low_conceptual_image,
             text_embeds=text_embeds
         )
-        aux_outputs = self.contrast(
+
+        aux_text_embeds = text_embeds.detach() if self.detach_text_embeds else text_embeds
+        aux_outputs = self.aux_contrast(
             image_embeds=high_conceptual_image,
-            text_embeds=text_embeds
+            text_embeds=aux_text_embeds
         )
 
         return {

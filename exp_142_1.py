@@ -20,6 +20,7 @@ seed_task_elements = {
     "backbone_name": "resnet18",
     "image_dim": 512,
     "text_embeds_path": "pre-trained/imagenet_zeroshot_simple_classifier.pt",
+    "detach_text_embeds": True,
     "num_low_concepts": 512,
     "norm_low_concepts": False,
     "num_attended_low_concepts": 512,

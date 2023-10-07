@@ -1,6 +1,6 @@
 import pandas as pd
 
-summary_path = "./logs/standard/summary.log"
+summary_path = "./logs/summary_OriTextHierarchicalConceptualPoolResNet.log"
 
 pd.set_option('display.max_columns', None)
 pd.set_option('display.width', None)
@@ -11,32 +11,41 @@ summary_df = pd.read_json(summary_path, lines=True)
 
 select_df = summary_df[
     summary_df["use_model"].isin(
-        ["OriTextCQPoolResNet34", "OriTextQuantResNet34", "OriTextResNet34", "OriTextSACQPoolResNet34", "OriTextSA2CQPoolResNet34"]
+        ["OriTextHierarchicalConceptualPoolResNet"]
     )
 ]
-# select_df[["concept_attn_head", "patch_attn_head"]] = select_df[[
-#     "concept_attn_head", "patch_attn_head"]].fillna("")
-# select_df[["concept_attn_max_fn", "patch_attn_max_fn"]] = select_df[[
-#     "concept_attn_max_fn", "patch_attn_max_fn"]].fillna("")
-select_df["expand_dim"] = select_df["expand_dim"].fillna(False)
-select_df["expand_dim"] = select_df["expand_dim"] != 0
 
 grouped_df = select_df[
-    ['use_model', 'num_concepts', 'num_attended_concepts', 'norm_concepts', 'att_smoothing',
-     'concept_attn_head', 'concept_attn_max_fn', 'patch_attn_head', 'patch_attn_max_fn', 'expand_dim',
-     'loss_sparsity_weight', 'loss_sparsity_adaptive', 'loss_diversity_weight',
-     'best_epoch', 'best_train_acc', 'best_val_acc', 'best_major_acc', 'best_major_acc_subset', 'best_minor_acc', 'best_minor_acc_subset',
-     'best_train_cfi_s10', 'best_train_cfi_s50', 'best_train_cfi_s90',
+    ['use_model', 'backbone_name',
+     'num_high_concepts', 'num_attended_high_concepts', 'low_high_max_function', 'output_high_concepts_type',
+     'patch_low_concept_num_heads', 'patch_low_concept_max_function', 'image_patch_num_heads', 'image_patch_max_function',
+     'loss_high_sparsity_weight', 'loss_high_diversity_weight', 'loss_aux_classification_weight',
+     'best_epoch', 'best_train_A', 'best_train_A_aux', 'best_major_A_sub', 'best_major_A_auxsub',
+     'best_minor_A', 'best_minor_A_sub', 'best_minor_A_aux', 'best_minor_A_auxsub',
      'best_train_pfi_s10', 'best_train_pfi_s50', 'best_train_pfi_s90',
-     'best_train_cfp_s10', 'best_train_cfp_s50', 'best_train_cfp_s90',
-     'best_minor_cfi_s10', 'best_minor_cfi_s50', 'best_minor_cfi_s90',
+     'best_train_lcfi_s10', 'best_train_lcfi_s50', 'best_train_lcfi_s90',
+     'best_train_hcfi_s10', 'best_train_hcfi_s50', 'best_train_hcfi_s90',
+     'best_train_lcfp_s10', 'best_train_lcfp_s50', 'best_train_lcfp_s90',
+     'best_train_hcfp_s10', 'best_train_hcfp_s50', 'best_train_hcfp_s90',
+     'best_train_lfh_s10', 'best_train_lfh_s50', 'best_train_lfh_s90',
+     'best_major_pfi_s10', 'best_major_pfi_s50', 'best_major_pfi_s90',
+     'best_major_lcfi_s10', 'best_major_lcfi_s50', 'best_major_lcfi_s90',
+     'best_major_hcfi_s10', 'best_major_hcfi_s50', 'best_major_hcfi_s90',
+     'best_major_lcfp_s10', 'best_major_lcfp_s50', 'best_major_lcfp_s90',
+     'best_major_hcfp_s10', 'best_major_hcfp_s50', 'best_major_hcfp_s90',
+     'best_major_lfh_s10', 'best_major_lfh_s50', 'best_major_lfh_s90',
      'best_minor_pfi_s10', 'best_minor_pfi_s50', 'best_minor_pfi_s90',
-     'best_minor_cfp_s10', 'best_minor_cfp_s50', 'best_minor_cfp_s90',
-     'best_train_loss_dvs', 'num_classes']
+     'best_minor_lcfi_s10', 'best_minor_lcfi_s50', 'best_minor_lcfi_s90',
+     'best_minor_hcfi_s10', 'best_minor_hcfi_s50', 'best_minor_hcfi_s90',
+     'best_minor_lcfp_s10', 'best_minor_lcfp_s50', 'best_minor_lcfp_s90',
+     'best_minor_hcfp_s10', 'best_minor_hcfp_s50', 'best_minor_hcfp_s90',
+     'best_minor_lfh_s10', 'best_minor_lfh_s50', 'best_minor_lfh_s90',
+     'best_val_L_ldvs', 'best_val_L_hdvs']
 ].groupby(
-    ['num_classes', 'use_model', 'att_smoothing', 'num_concepts', 'loss_sparsity_weight', 'num_attended_concepts',
-     'concept_attn_head', 'concept_attn_max_fn', 'patch_attn_head', 'patch_attn_max_fn', 'expand_dim',
-     'loss_sparsity_adaptive', 'norm_concepts', 'loss_diversity_weight']
+    ['use_model', 'backbone_name',
+     'num_high_concepts', 'num_attended_high_concepts', 'low_high_max_function', 'output_high_concepts_type',
+     'patch_low_concept_num_heads', 'patch_low_concept_max_function', 'image_patch_num_heads', 'image_patch_max_function',
+     'loss_high_sparsity_weight', 'loss_high_diversity_weight', 'loss_aux_classification_weight',]
 )
 
 pd.concat(

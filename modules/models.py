@@ -912,6 +912,7 @@ class HierarchicalConcepts(nn.Module):
         low_high_max_function (str): The max function of the low-to-high mapping.
         output_high_concepts_type (str): The type of output high-level concepts.
             Must be one of "original_high", "high_plus_low", or "aggregated_low".
+        detach_low_concepts (bool): Whether to detach the low-level concepts.
 
     Attributes:
         low_concepts (Concepts): The low-level concepts module.
@@ -931,7 +932,8 @@ class HierarchicalConcepts(nn.Module):
                  num_high_concepts: int,
                  concept_dim: int,
                  low_high_max_function: str,
-                 output_high_concepts_type: str):
+                 output_high_concepts_type: str,
+                 detach_low_concepts: bool):
         super(HierarchicalConcepts, self).__init__()
 
         self.low_concepts = Concepts(
@@ -952,6 +954,7 @@ class HierarchicalConcepts(nn.Module):
             max_smoothing=0.0
         )
         self.output_high_concepts_type = output_high_concepts_type
+        self.detach_low_concepts = detach_low_concepts
 
     def forward(self, norm_low_concepts: bool, norm_high_concepts: bool) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         """
@@ -980,8 +983,11 @@ class HierarchicalConcepts(nn.Module):
             norm_high_concepts
         )
 
+        high_related_low_concepts = low_concepts.detach(
+        ) if self.detach_low_concepts else low_concepts
+
         _, low_high_hierarchy = self.concept_hierarchy_builder(
-            low_concepts.unsqueeze(0),  # [1, N_low, D]
+            high_related_low_concepts.unsqueeze(0),  # [1, N_low, D]
             high_concepts.unsqueeze(0),  # [1, N_high, D]
             high_concepts.unsqueeze(0)  # [1, N_high, D]
         )  # [1, N_low, N_high]
@@ -993,7 +999,7 @@ class HierarchicalConcepts(nn.Module):
         else:
             high_low_hierarchy = low_high_hierarchy.t()  # [N_high, N_low]
             output_high_concepts = torch.matmul(
-                normalize_rows(high_low_hierarchy), low_concepts
+                normalize_rows(high_low_hierarchy), high_related_low_concepts
             )  # [N_high, D]
             if self.output_high_concepts_type == "high_plus_low":
                 output_high_concepts = output_high_concepts + high_concepts
@@ -1092,7 +1098,8 @@ class OriTextHierarchicalConceptualPoolResNet(nn.Module):
             num_high_concepts=self.num_high_concepts,
             concept_dim=self.concept_dim,
             low_high_max_function=self.low_high_max_function,
-            output_high_concepts_type=self.output_high_concepts_type
+            output_high_concepts_type=self.output_high_concepts_type,
+            detach_low_concepts=self.detach_low_concepts
         )
 
         self.hierarchical_conceptual_pooling = HierarchicalConceptualPool2d(
@@ -1127,6 +1134,7 @@ class OriTextHierarchicalConceptualPoolResNet(nn.Module):
         self.low_high_max_function = config.get("low_high_max_function")
         self.output_high_concepts_type = config.get(
             "output_high_concepts_type")
+        self.detach_low_concepts = config.get("detach_low_concepts")
 
         self.image_patch_n_head = config.get("image_patch_num_heads")
         self.image_patch_keep_head_dim = config.get(

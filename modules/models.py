@@ -983,8 +983,10 @@ class HierarchicalConcepts(nn.Module):
             norm_high_concepts
         )
 
-        high_related_low_concepts = low_concepts.detach(
-        ) if self.detach_low_concepts else low_concepts
+        if self.detach_low_concepts:
+            high_related_low_concepts = low_concepts.detach()
+        else:
+            high_related_low_concepts = low_concepts
 
         _, low_high_hierarchy = self.concept_hierarchy_builder(
             high_related_low_concepts.unsqueeze(0),  # [1, N_low, D]

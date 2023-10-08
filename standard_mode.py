@@ -95,7 +95,7 @@ parser.add_argument("--summary_log_path", required=True, type=str)
 parser.add_argument("--detailed_log_path", required=True, type=str)
 # device
 parser.add_argument("--gpu", required=True, type=int)
-parser.add_argument("--dataloader_workers", default=8, type=int)
+parser.add_argument("--dataloader_workers", default=10, type=int)
 parser.add_argument("--dataloader_pin_memory", default="True")
 
 args = parser.parse_args()

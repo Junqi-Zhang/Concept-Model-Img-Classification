@@ -912,7 +912,6 @@ class HierarchicalConcepts(nn.Module):
         low_high_max_function (str): The max function of the low-to-high mapping.
         output_high_concepts_type (str): The type of output high-level concepts.
             Must be one of "original_high", "high_plus_low", or "aggregated_low".
-        detach_low_concepts (bool): Whether to detach the low-level concepts.
 
     Attributes:
         low_concepts (Concepts): The low-level concepts module.
@@ -932,8 +931,7 @@ class HierarchicalConcepts(nn.Module):
                  num_high_concepts: int,
                  concept_dim: int,
                  low_high_max_function: str,
-                 output_high_concepts_type: str,
-                 detach_low_concepts: bool):
+                 output_high_concepts_type: str):
         super(HierarchicalConcepts, self).__init__()
 
         self.low_concepts = Concepts(
@@ -954,15 +952,15 @@ class HierarchicalConcepts(nn.Module):
             max_smoothing=0.0
         )
         self.output_high_concepts_type = output_high_concepts_type
-        self.detach_low_concepts = detach_low_concepts
 
-    def forward(self, norm_low_concepts: bool, norm_high_concepts: bool) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+    def forward(self, norm_low_concepts: bool, norm_high_concepts: bool, detach_low_concepts: bool) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         """
         Computes the forward pass of the hierarchical concepts module.
 
         Args:
             norm_low_concepts (bool): Whether to normalize the low-level concepts.
             norm_high_concepts (bool): Whether to normalize the high-level concepts.
+            detach_low_concepts (bool): Whether to detach the low-level concepts related tensors.
 
         Returns:
             A tuple containing the following elements:
@@ -983,7 +981,7 @@ class HierarchicalConcepts(nn.Module):
             norm_high_concepts
         )
 
-        if self.detach_low_concepts:
+        if detach_low_concepts:
             high_related_low_concepts = low_concepts.detach()
         else:
             high_related_low_concepts = low_concepts
@@ -1046,7 +1044,7 @@ class HierarchicalConceptualPool2d(nn.Module):
             patch_concept_max_smoothing=patch_concept_max_smoothing
         )
 
-    def forward(self, patches: torch.Tensor, low_concepts: torch.Tensor, high_concepts: torch.Tensor, low_high_hierarchy: torch.Tensor):
+    def forward(self, patches: torch.Tensor, low_concepts: torch.Tensor, high_concepts: torch.Tensor, low_high_hierarchy: torch.Tensor, detach_low_concepts: bool) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         (
             low_conceptual_image,  # [B, D_kv]
             image_low_concept_attention_weight,  # [B, N_low]
@@ -1054,12 +1052,20 @@ class HierarchicalConceptualPool2d(nn.Module):
             patch_low_concept_attention_weight  # [B, 1+H*W, N_low]
         ) = self.conceptual_pooling(patches, low_concepts)
 
-        image_high_concept_attention_weight = torch.matmul(
-            image_low_concept_attention_weight, low_high_hierarchy
-        )  # [B, N_high]
-        patch_high_concept_attention_weight = torch.matmul(
-            patch_low_concept_attention_weight, low_high_hierarchy
-        )  # [B, 1+H*W, N_high]
+        if detach_low_concepts:
+            image_high_concept_attention_weight = torch.matmul(
+                image_low_concept_attention_weight.detach(), low_high_hierarchy
+            )  # [B, N_high]
+            patch_high_concept_attention_weight = torch.matmul(
+                patch_low_concept_attention_weight.detach(), low_high_hierarchy
+            )  # [B, 1+H*W, N_high]
+        else:
+            image_high_concept_attention_weight = torch.matmul(
+                image_low_concept_attention_weight, low_high_hierarchy
+            )  # [B, N_high]
+            patch_high_concept_attention_weight = torch.matmul(
+                patch_low_concept_attention_weight, low_high_hierarchy
+            )  # [B, 1+H*W, N_high]
         high_conceptual_image = torch.matmul(
             image_high_concept_attention_weight, high_concepts
         )  # [B, D_kv]
@@ -1100,8 +1106,7 @@ class OriTextHierarchicalConceptualPoolResNet(nn.Module):
             num_high_concepts=self.num_high_concepts,
             concept_dim=self.concept_dim,
             low_high_max_function=self.low_high_max_function,
-            output_high_concepts_type=self.output_high_concepts_type,
-            detach_low_concepts=self.detach_low_concepts
+            output_high_concepts_type=self.output_high_concepts_type
         )
 
         self.hierarchical_conceptual_pooling = HierarchicalConceptualPool2d(
@@ -1175,7 +1180,8 @@ class OriTextHierarchicalConceptualPoolResNet(nn.Module):
             low_high_hierarchy  # [N_low, N_high]
         ) = self.hierarchical_concepts(
             norm_low_concepts=self.norm_low_concepts,
-            norm_high_concepts=self.norm_high_concepts
+            norm_high_concepts=self.norm_high_concepts,
+            detach_low_concepts=self.detach_low_concepts
         )
 
         image_patches = self.image_encoder(x)
@@ -1189,8 +1195,13 @@ class OriTextHierarchicalConceptualPoolResNet(nn.Module):
             patch_low_concept_attention_weight,  # [B, 1+H*W, N_low]
             patch_high_concept_attention_weight  # [B, 1+H*W, N_high]
         ) = self.hierarchical_conceptual_pooling(
-            image_patches, low_concepts, high_concepts, low_high_hierarchy
+            patches=image_patches,
+            low_concepts=low_concepts,
+            high_concepts=high_concepts,
+            low_high_hierarchy=low_high_hierarchy,
+            detach_low_concepts=self.detach_low_concepts
         )
+
         assert self.concept_dim == low_conceptual_image.size(1)
         assert self.concept_dim == high_conceptual_image.size(1)
 

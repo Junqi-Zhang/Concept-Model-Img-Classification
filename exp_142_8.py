@@ -61,22 +61,23 @@ def generate_tasks(seed_task_elements, parallel, gpus):
     new_task_element = seed_task_elements.copy()
     tasks.append(new_task_element)
 
-    # task 5
-    new_task_element = seed_task_elements.copy()
-    new_task_element["output_high_concepts_type"] = "original_high"
-    tasks.append(new_task_element)
-
     # task 2
     new_task_element = seed_task_elements.copy()
-    new_task_element["low_high_max_function"] = "hard_gumbel"
+    new_task_element["num_attended_high_concepts"] = 16
+    new_task_element["loss_high_sparsity_weight"] = 0.01
     tasks.append(new_task_element)
 
     # task 3
     new_task_element = seed_task_elements.copy()
-    new_task_element["low_high_max_function"] = "hard_gumbel"
-    new_task_element["output_high_concepts_type"] = "original_high"
+    new_task_element["loss_high_diversity_weight"] = 1.0
     tasks.append(new_task_element)
 
+    # task 4
+    new_task_element = seed_task_elements.copy()
+    new_task_element["loss_high_diversity_weight"] = 1.0
+    new_task_element["num_attended_high_concepts"] = 16
+    new_task_element["loss_high_sparsity_weight"] = 0.01
+    tasks.append(new_task_element)
 
     if parallel:
         num_gpus = len(gpus)

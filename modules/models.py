@@ -1209,7 +1209,7 @@ class OriTextHierarchicalConceptualPoolResNet(nn.Module):
         if self.text_dim != self.contrastive_dim:
             text_embeds = self.text_dim_transformer(text_embeds)
         outputs = self.contrast(
-            image_embeds=low_conceptual_image,
+            image_embeds=low_conceptual_image + high_conceptual_image,
             text_embeds=text_embeds
         )
 

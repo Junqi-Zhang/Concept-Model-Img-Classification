@@ -4,6 +4,7 @@
 /pre-trained/
 /logs/
 /checkpoints/
+/analyze_checkpoints/
 /concept_images/
 /summary_excels/
 

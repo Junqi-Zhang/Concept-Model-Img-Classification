@@ -1,6 +1,6 @@
 import pandas as pd
 
-summary_path = "./logs/summary_OriTextHierarchicalConceptualPoolResNet.log"
+summary_path = "logs/summary_OriTextHierarchicalConceptualPoolResNet.log"
 
 pd.set_option('display.max_columns', None)
 pd.set_option('display.width', None)
@@ -16,9 +16,11 @@ select_df = summary_df[
 ]
 
 grouped_df = select_df[
-    ['use_model', 'backbone_name',
-     'num_high_concepts', 'num_attended_high_concepts', 'low_high_max_function', 'output_high_concepts_type',
+    ['supplementary_description', 'use_model', 'backbone_name',
+     'num_low_concepts', 'num_attended_low_concepts', 'num_high_concepts', 'num_attended_high_concepts',
+     'low_high_max_function', 'output_high_concepts_type', 'detach_low_concepts',
      'patch_low_concept_num_heads', 'patch_low_concept_max_function', 'image_patch_num_heads', 'image_patch_max_function',
+     'loss_low_diversity_weight',
      'loss_high_sparsity_weight', 'loss_high_diversity_weight', 'loss_aux_classification_weight',
      'best_epoch', 'best_train_A', 'best_train_A_aux', 'best_major_A_sub', 'best_major_A_auxsub',
      'best_minor_A', 'best_minor_A_sub', 'best_minor_A_aux', 'best_minor_A_auxsub',
@@ -40,11 +42,14 @@ grouped_df = select_df[
      'best_minor_lcfp_s10', 'best_minor_lcfp_s50', 'best_minor_lcfp_s90',
      'best_minor_hcfp_s10', 'best_minor_hcfp_s50', 'best_minor_hcfp_s90',
      'best_minor_lfh_s10', 'best_minor_lfh_s50', 'best_minor_lfh_s90',
-     'best_val_L_ldvs', 'best_val_L_hdvs']
+     'best_val_L_ldvs', 'best_val_L_hdvs',
+     'best_val_L_lsps', 'best_val_L_hsps']
 ].groupby(
-    ['use_model', 'backbone_name',
-     'num_high_concepts', 'num_attended_high_concepts', 'low_high_max_function', 'output_high_concepts_type',
+    ['supplementary_description', 'use_model', 'backbone_name',
+     'num_low_concepts', 'num_attended_low_concepts', 'num_high_concepts', 'num_attended_high_concepts',
+     'low_high_max_function', 'output_high_concepts_type', 'detach_low_concepts',
      'patch_low_concept_num_heads', 'patch_low_concept_max_function', 'image_patch_num_heads', 'image_patch_max_function',
+     'loss_low_diversity_weight',
      'loss_high_sparsity_weight', 'loss_high_diversity_weight', 'loss_aux_classification_weight',]
 )
 

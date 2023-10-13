@@ -15,6 +15,7 @@ from torch.utils.data import DataLoader
 from torchvision import transforms
 from torchvision.datasets import ImageFolder
 
+from preprocess.imagenet_classes import IMAGENET2012_CLASSES_IDX
 from modules.data_folders import PROVIDED_DATASETS
 from modules.models import MODELS
 from modules.models_exp import MODELS_EXP
@@ -26,7 +27,7 @@ from modules.losses import capped_lp_norm_hinge, orthogonality_l2_norm, PIContro
 # Basic settings
 ##########################
 
-os.environ["CUDA_VISIBLE_DEVICES"] = "9"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
 if torch.cuda.is_available():
     device = "cuda"
@@ -36,39 +37,56 @@ else:
 config = Recorder()
 
 # dataset
+# 'n02391049'  267, 'n02389026' 266.
+config.dataset_name = "Sampled_ImageNet_800x500_200x0_Seed_6"
 # 'n02391049'  340, 'n02389026' 339.
-config.dataset_name = "Sampled_ImageNet_500x1000_500x5_Seed_6"
+# config.dataset_name = "Sampled_ImageNet_500x1000_500x5_Seed_6"
 # config.dataset_name = "Sampled_ImageNet_200x1000_200x25_Seed_6"  # 'n02391049' 134
 # config.dataset_name = "Sampled_ImageNet"  # 'n02391049' 83
 config.update(PROVIDED_DATASETS[config.dataset_name])
 # model
-config.use_model = "OriTextResNet"
+config.use_model = "OriTextHierarchicalConceptualPoolResNet"
 config.backbone_name = "resnet18"
 config.image_dim = 512
 config.image_spacial_dim = 7
 config.text_embeds_path = "pre-trained/imagenet_zeroshot_simple_classifier.pt"
 config.text_dim = 4096
+config.detach_text_embeds = True
 config.concept_dim = 512
-config.num_low_concepts = 0
+config.num_low_concepts = 512
 config.norm_low_concepts = False
-config.num_attended_low_concepts = 0
-config.image_low_concept_num_heads = 0
-config.image_low_concept_keep_head_dim = True
-config.image_low_concept_max_function = "sparsemax"
-config.image_low_concept_max_smoothing = 0
+config.num_attended_low_concepts = 512
+config.num_high_concepts = 64
+config.norm_high_concepts = False
+config.num_attended_high_concepts = 64
+config.low_high_max_function = "hard_gumbel"
+config.output_high_concepts_type = "original_high"
+config.detach_low_concepts = True
+config.patch_low_concept_num_heads = 1
+config.patch_low_concept_keep_head_dim = True
+config.patch_low_concept_max_function = "sparsemax"
+config.patch_low_concept_max_smoothing = 0.0
+config.image_patch_num_heads = 1
+config.image_patch_keep_head_dim = True
+config.image_patch_max_function = "softmax"
+config.image_patch_max_smoothing = 0.0
 config.contrastive_dim = 512
 # loss
-config.loss_sparsity_weight = 0.02
-config.loss_sparsity_adaptive = False
-config.loss_diversity_weight = 1.0
+config.loss_low_sparsity_weight = 0.0
+config.loss_low_sparsity_adaptive = False
+config.loss_low_diversity_weight = 0.0
+config.loss_high_sparsity_weight = 0.0
+config.loss_high_sparsity_adaptive = False
+config.loss_high_diversity_weight = 0.0
+config.loss_aux_classification_weight = 1.0
 # train
-config.batch_size = 125
+config.batch_size = 128
 # device
 config.dataloader_workers = 16
 config.dataloader_pin_memory = True
 # checkpoint
-config.load_checkpoint_path = "./checkpoints/Sampled_ImageNet_500x1000_500x5_Seed_6/BasicQuantResNet18V4Smooth/202309170851_on_gpu_5/best_epoch_29_0.7879_0.3334_0.6603_0.6603_0.0058_0.2832_75.5_104.6_78.5_103.5_0.0.pt"
-config.checkpoint_desc = "500概念_smooth0.2_sps0.02to100"
+config.load_checkpoint_path = "./analyze_checkpoints/Sampled_ImageNet_800x500_200x0_Seed_6/OriTextHierarchicalConceptualPoolResNet/202310082036_on_gpu_1/best_epoch_34_0.7102_0.2515_0.1997_50_226_63_18_15_10_37.8_4.8.pt"
+config.checkpoint_desc = "hard_gumbel_original_high_detach_low_auxcls"
 
 # Confirm basic settings
 print("\n"+"#"*100)
@@ -105,49 +123,66 @@ train_dataset = ImageFolder(
     root=config.train_folder_path,
     transform=train_transform
 )
-train_classes_idx = [idx for idx in train_dataset.class_to_idx.values()]
+train_idx_transform = dict()
+for key, value in train_dataset.class_to_idx.items():
+    train_idx_transform[value] = IMAGENET2012_CLASSES_IDX[key]
+train_classes_idx = [
+    train_idx_transform[idx] for idx in train_dataset.class_to_idx.values()
+]
+train_acc_mask_idx = [
+    idx for idx in train_dataset.class_to_idx.values()
+]
+
 eval_dataset = ImageFolder(
     root=config.val_folder_path,
     transform=eval_transform
 )
-eval_classes_idx = [idx for idx in eval_dataset.class_to_idx.values()]
+eval_idx_transform = dict()
+for key, value in eval_dataset.class_to_idx.items():
+    eval_idx_transform[value] = IMAGENET2012_CLASSES_IDX[key]
+eval_classes_idx = [
+    eval_idx_transform[idx] for idx in eval_dataset.class_to_idx.values()
+]
+eval_acc_mask_idx = [
+    idx for idx in eval_dataset.class_to_idx.values()
+]
 
 tmp_major_dataset = ImageFolder(root=config.major_val_folder_path)
-tmp_minor_dataset = ImageFolder(root=config.minor_val_folder_path)
-
-major_to_train_idx_transform = dict()
+major_to_eval_idx_transform = dict()
 for key, value in tmp_major_dataset.class_to_idx.items():
-    major_to_train_idx_transform[value] = train_dataset.class_to_idx[key]
+    major_to_eval_idx_transform[value] = eval_dataset.class_to_idx[key]
 
 
-def major_to_train(target):
-    return major_to_train_idx_transform[target]
-
-
-minor_to_train_idx_transform = dict()
-for key, value in tmp_minor_dataset.class_to_idx.items():
-    minor_to_train_idx_transform[value] = train_dataset.class_to_idx[key]
-
-
-def minor_to_train(target):
-    return minor_to_train_idx_transform[target]
+def major_to_eval_transform(target):
+    return major_to_eval_idx_transform[target]
 
 
 eval_major_dataset = ImageFolder(
     root=config.major_val_folder_path,
     transform=eval_transform,
-    target_transform=major_to_train
+    target_transform=major_to_eval_transform
 )
-eval_major_classes_idx = [
-    major_to_train(idx) for idx in eval_major_dataset.class_to_idx.values()
+eval_major_acc_mask_idx = [
+    major_to_eval_transform(idx) for idx in eval_major_dataset.class_to_idx.values()
 ]
+
+tmp_minor_dataset = ImageFolder(root=config.minor_val_folder_path)
+minor_to_eval_idx_transform = dict()
+for key, value in tmp_minor_dataset.class_to_idx.items():
+    minor_to_eval_idx_transform[value] = eval_dataset.class_to_idx[key]
+
+
+def minor_to_eval_transform(target):
+    return minor_to_eval_idx_transform[target]
+
+
 eval_minor_dataset = ImageFolder(
     root=config.minor_val_folder_path,
     transform=eval_transform,
-    target_transform=minor_to_train
+    target_transform=minor_to_eval_transform
 )
-eval_minor_classes_idx = [
-    minor_to_train(idx) for idx in eval_minor_dataset.class_to_idx.values()
+eval_minor_acc_mask_idx = [
+    minor_to_eval_transform(idx) for idx in eval_minor_dataset.class_to_idx.values()
 ]
 
 
@@ -186,12 +221,7 @@ PROVIDED_MODELS = OrderedDict(**MODELS, **MODELS_EXP)
 
 model_parameters = dict(
     {
-        "num_classes": config.num_classes,
-        "num_concepts": config.num_concepts,
-        "norm_concepts": config.norm_concepts,
-        "norm_summary": config.norm_summary,
-        "grad_factor": config.grad_factor,
-        "smoothing": config.att_smoothing
+        "config": config
     }
 )
 
@@ -200,17 +230,43 @@ model = PROVIDED_MODELS[config.use_model](**model_parameters).to(device)
 load_model(model, config.load_checkpoint_path)
 
 criterion = nn.CrossEntropyLoss()
-sparsity_controller = PIController(
+low_sparsity_controller = PIController(
     kp=0.001, ki=0.00001,
-    target_metric=config.num_attended_concepts,
-    initial_weight=config.loss_sparsity_weight
+    target_metric=config.num_attended_low_concepts,
+    initial_weight=config.loss_low_sparsity_weight
+)
+high_sparsity_controller = PIController(
+    kp=0.001, ki=0.00001,
+    target_metric=config.num_attended_high_concepts,
+    initial_weight=config.loss_high_sparsity_weight
 )
 
 
-def compute_loss(returned_dict, targets, train=False):
+def compute_loss(returned_dict, targets, train=False, metric_prefix="train_"):
     outputs = returned_dict["outputs"]
-    attention_weights = returned_dict.get("attention_weights", None)
-    concept_similarity = returned_dict.get("concept_similarity", None)
+    aux_outputs = returned_dict.get("aux_outputs", None)
+    # image_patch_attention_weight = returned_dict.get(
+    #     "image_patch_attention_weight", None
+    # )
+    image_low_concept_attention_weight = returned_dict.get(
+        "image_low_concept_attention_weight", None
+    )
+    image_high_concept_attention_weight = returned_dict.get(
+        "image_high_concept_attention_weight", None
+    )
+    # patch_low_concept_attention_weight = returned_dict.get(
+    #     "patch_low_concept_attention_weight", None
+    # )
+    # patch_high_concept_attention_weight = returned_dict.get(
+    #     "patch_high_concept_attention_weight", None
+    # )
+    low_concept_cosine_similarity = returned_dict.get(
+        "low_concept_cosine_similarity", None
+    )
+    high_concept_cosine_similarity = returned_dict.get(
+        "high_concept_cosine_similarity", None
+    )
+    # low_high_hierarchy = returned_dict.get("low_high_hierarchy", None)
 
     def normalize_rows(input_tensor, epsilon=1e-10):
         input_tensor = input_tensor.to(torch.float)
@@ -219,25 +275,27 @@ def compute_loss(returned_dict, targets, train=False):
         normalized_tensor = input_tensor / row_sums
         return normalized_tensor
 
+    if metric_prefix == "train_":
+        num_classes = len(train_classes_idx)
+    else:
+        num_classes = len(eval_classes_idx)
+
     loss_cls_per_img = criterion(outputs, targets)  # B * K
     loss_img_per_cls = criterion(
-        outputs.t(), normalize_rows(F.one_hot(targets, config.num_classes).t())
+        outputs.t(), normalize_rows(F.one_hot(targets, num_classes).t())
     )  # K * B
     loss_classification = (loss_cls_per_img + loss_img_per_cls) / 2.0
 
-    if (attention_weights is None) and (concept_similarity is None):
-        loss_sparsity = torch.tensor(0.0)
-        loss_diversity = torch.tensor(0.0)
-        loss = loss_classification + config.loss_sparsity_weight * \
-            loss_sparsity + config.loss_diversity_weight * loss_diversity
-        return loss, loss_cls_per_img, loss_img_per_cls, loss_sparsity, loss_diversity
-
-    loss_sparsity = capped_lp_norm_hinge(
-        attention_weights,
-        target=config.num_attended_concepts,
-        gamma=1.0/config.num_attended_concepts,
-        reduction="sum")
-    loss_diversity = orthogonality_l2_norm(concept_similarity)
+    if aux_outputs is None:
+        loss_aux_classification = torch.tensor(0.0)
+    else:
+        loss_aux_cls_per_img = criterion(aux_outputs, targets)
+        loss_aux_img_per_cls = criterion(
+            aux_outputs.t(), normalize_rows(F.one_hot(targets, num_classes).t())
+        )
+        loss_aux_classification = (
+            loss_aux_cls_per_img + loss_aux_img_per_cls
+        ) / 2.0
 
     def num_attended_concepts_s99(attention_weights):
         with torch.no_grad():
@@ -250,14 +308,92 @@ def compute_loss(returned_dict, targets, train=False):
             ).item()
         return s99
 
-    if config.loss_sparsity_adaptive and train:
-        s99 = num_attended_concepts_s99(attention_weights)
-        config.loss_sparsity_weight = sparsity_controller.update(s99)
+    if (image_low_concept_attention_weight is None) and (low_concept_cosine_similarity is None):
+        loss_low_sparsity = torch.tensor(0.0)
+        loss_low_diversity = torch.tensor(0.0)
+    else:
+        loss_low_sparsity = capped_lp_norm_hinge(
+            image_low_concept_attention_weight,
+            target=config.num_attended_low_concepts,
+            gamma=1.0/config.num_attended_low_concepts,
+            reduction="sum"
+        )
+        if config.loss_low_sparsity_adaptive and train:
+            low_s99 = num_attended_concepts_s99(
+                image_low_concept_attention_weight
+            )
+            config.loss_low_sparsity_weight = low_sparsity_controller.update(
+                low_s99
+            )
+        loss_low_diversity = orthogonality_l2_norm(
+            low_concept_cosine_similarity
+        )
 
-    loss = loss_classification + config.loss_sparsity_weight * \
-        loss_sparsity + config.loss_diversity_weight * loss_diversity
+    if (image_high_concept_attention_weight is None) and (high_concept_cosine_similarity is None):
+        loss_high_sparsity = torch.tensor(0.0)
+        loss_high_diversity = torch.tensor(0.0)
+    else:
+        loss_high_sparsity = capped_lp_norm_hinge(
+            image_high_concept_attention_weight,
+            target=config.num_attended_high_concepts,
+            gamma=1.0/config.num_attended_high_concepts,
+            reduction="sum"
+        )
+        if config.loss_high_sparsity_adaptive and train:
+            high_s99 = num_attended_concepts_s99(
+                image_high_concept_attention_weight
+            )
+            config.loss_high_sparsity_weight = high_sparsity_controller.update(
+                high_s99
+            )
+        loss_high_diversity = orthogonality_l2_norm(
+            high_concept_cosine_similarity
+        )
 
-    return loss, loss_cls_per_img, loss_img_per_cls, loss_sparsity, loss_diversity
+    loss = loss_classification + \
+        config.loss_aux_classification_weight * loss_aux_classification + \
+        config.loss_low_sparsity_weight * loss_low_sparsity + \
+        config.loss_low_diversity_weight * loss_low_diversity + \
+        config.loss_high_sparsity_weight * loss_high_sparsity + \
+        config.loss_high_diversity_weight * loss_high_diversity
+
+    return (
+        loss,
+        loss_classification,
+        loss_aux_classification,
+        loss_low_sparsity,
+        loss_high_sparsity,
+        loss_low_diversity,
+        loss_high_diversity
+    )
+
+
+def custom_quantile(returned_dict: dict, key: str, dim: int, epsilon: float = 1e-7):
+    """
+    Compute the 10th, 50th, and 90th percentiles of a tensor along a specified dimension.
+
+    Args:
+        returned_dict: A dictionary containing the tensor to be processed.
+        key: The key of the tensor to be processed.
+        dim: The dimension along which to compute the percentiles.
+        epsilon: A small value considered as zero.
+
+    Returns:
+        A tuple containing the 10th, 50th, and 90th percentiles of the tensor.
+    """
+    if returned_dict.get(key, None) is not None:
+        count = torch.sum(
+            (returned_dict.get(key).data - epsilon) > 0,
+            dim=dim
+        ).type(torch.float)
+        s10 = torch.quantile(count, 0.10).item()
+        s50 = torch.quantile(count, 0.50).item()
+        s90 = torch.quantile(count, 0.90).item()
+    else:
+        s10 = -1
+        s50 = -1
+        s90 = -1
+    return s10, s50, s90
 
 
 ##########################
@@ -265,14 +401,19 @@ def compute_loss(returned_dict, targets, train=False):
 ##########################
 
 
-def run_epoch(desc, model, dataloader, classes_idx, metric_prefix=""):
+def run_epoch(desc, model, dataloader, acc_mask_idx, metric_prefix=""):
 
     model.eval()
 
     metric_dict = dict()
+    screen_dict = dict()
 
-    attention = []
     label = []
+    patch_low_concept_attention_weight = []
+    patch_high_concept_attention_weight = []
+    image_low_concept_attention_weight = []
+    image_high_concept_attention_weight = []
+    low_high_hierarchy = None
 
     step = 0
     with tqdm(
@@ -289,16 +430,42 @@ def run_epoch(desc, model, dataloader, classes_idx, metric_prefix=""):
             targets = targets.to(device)
 
             with torch.no_grad():
-                returned_dict = model(data)
-                loss, loss_cls_per_img, loss_img_per_cls, loss_sparsity, loss_diversity = compute_loss(
-                    returned_dict, targets, train=False
+                if metric_prefix == "train_":
+                    returned_dict = model(data, train_classes_idx)
+                else:
+                    returned_dict = model(data, eval_classes_idx)
+                (
+                    loss,
+                    loss_classification,
+                    loss_aux_classification,
+                    loss_low_sparsity,
+                    loss_high_sparsity,
+                    loss_low_diversity,
+                    loss_high_diversity
+                ) = compute_loss(
+                    returned_dict, targets, train=False, metric_prefix=metric_prefix
                 )
 
-            if returned_dict.get("attention_weights", None) is not None:
-                attention.append(
-                    returned_dict["attention_weights"].detach().cpu().numpy()
-                )
+            if returned_dict.get("image_high_concept_attention_weight", None) is not None:
                 label.append(targets.cpu().numpy())
+                # patch_low_concept_attention_weight.append(
+                #     returned_dict["patch_low_concept_attention_weight"].detach(
+                #     ).cpu().numpy()
+                # )
+                patch_high_concept_attention_weight.append(
+                    returned_dict["patch_high_concept_attention_weight"].detach(
+                    ).cpu().numpy()
+                )
+                image_low_concept_attention_weight.append(
+                    returned_dict["image_low_concept_attention_weight"].detach(
+                    ).cpu().numpy()
+                )
+                image_high_concept_attention_weight.append(
+                    returned_dict["image_high_concept_attention_weight"].detach(
+                    ).cpu().numpy()
+                )
+                low_high_hierarchy = returned_dict["low_high_hierarchy"].detach(
+                ).cpu().numpy()
 
             # display the metrics
             with torch.no_grad():
@@ -307,127 +474,265 @@ def run_epoch(desc, model, dataloader, classes_idx, metric_prefix=""):
                                     1) == targets).sum() / targets.size(0)
 
                 mask = torch.zeros_like(returned_dict["outputs"].data)
-                mask[:, classes_idx] = 1
+                mask[:, acc_mask_idx] = 1
                 acc_subset = (torch.argmax(returned_dict["outputs"].data * mask,
                                            1) == targets).sum() / targets.size(0)
 
-                if returned_dict.get("attention_weights", None) is not None:
-                    attended_concepts_count = torch.sum(
-                        (returned_dict.get("attention_weights").data - 1e-7) > 0,
-                        dim=1
-                    ).type(torch.float)
-                    s10 = torch.quantile(attended_concepts_count, 0.10).item()
-                    s50 = torch.quantile(attended_concepts_count, 0.50).item()
-                    s90 = torch.quantile(attended_concepts_count, 0.90).item()
-                else:
-                    s10 = -1
-                    s50 = -1
-                    s90 = -1
+                aux_acc = (torch.argmax(returned_dict["aux_outputs"].data,
+                                        1) == targets).sum() / targets.size(0)
+                aux_acc_subset = (torch.argmax(returned_dict["aux_outputs"].data * mask,
+                                               1) == targets).sum() / targets.size(0)
 
-            def update_metric_dict(key, value, average=True):
+                pfi_s10, pfi_s50, pfi_s90 = custom_quantile(
+                    returned_dict=returned_dict,
+                    key="image_patch_attention_weight",
+                    dim=1
+                )
+
+                lcfi_s10, lcfi_s50, lcfi_s90 = custom_quantile(
+                    returned_dict=returned_dict,
+                    key="image_low_concept_attention_weight",
+                    dim=1
+                )
+
+                hcfi_s10, hcfi_s50, hcfi_s90 = custom_quantile(
+                    returned_dict=returned_dict,
+                    key="image_high_concept_attention_weight",
+                    dim=1
+                )
+
+                lcfp_s10, lcfp_s50, lcfp_s90 = custom_quantile(
+                    returned_dict=returned_dict,
+                    key="patch_low_concept_attention_weight",
+                    dim=2
+                )
+
+                hcfp_s10, hcfp_s50, hcfp_s90 = custom_quantile(
+                    returned_dict=returned_dict,
+                    key="patch_high_concept_attention_weight",
+                    dim=2
+                )
+
+                lfh_s10, lfh_s50, lfh_s90 = custom_quantile(
+                    returned_dict=returned_dict,
+                    key="low_high_hierarchy",
+                    dim=0
+                )
+
+            def update_metric_dict(key, value, average=True, verbose=True):
                 if average:
                     metric_dict[metric_prefix + key] = (
                         metric_dict.get(
                             metric_prefix + key, 0
                         ) * step + value
                     ) / (step + 1)
+                    if verbose:
+                        screen_dict[key] = (
+                            screen_dict.get(key, 0) * step + value
+                        ) / (step + 1)
                 else:
                     metric_dict[metric_prefix + key] = value
+                    if verbose:
+                        screen_dict[key] = value
 
-            update_metric_dict("acc", acc.item())
-            update_metric_dict("acc_subset", acc_subset.item())
-            update_metric_dict("loss", loss.item())
-            update_metric_dict("loss_cpi", loss_cls_per_img.item())
-            update_metric_dict("loss_ipc", loss_img_per_cls.item())
-            update_metric_dict("loss_dvs", loss_diversity.item())
-            update_metric_dict("loss_sps", loss_sparsity.item())
+            update_metric_dict("A", acc.item())
+            update_metric_dict("A_sub", acc_subset.item())
+            update_metric_dict("A_aux", aux_acc.item())
+            update_metric_dict("A_auxsub", aux_acc_subset.item())
+            update_metric_dict("L", loss.item())
+            update_metric_dict("L_cls", loss_classification.item())
+            update_metric_dict("L_aux", loss_aux_classification.item())
+            update_metric_dict("L_lsps", loss_low_sparsity.item())
+            update_metric_dict("L_hsps", loss_high_sparsity.item())
+            update_metric_dict("L_ldvs", loss_low_diversity.item())
+            update_metric_dict("L_hdvs", loss_high_diversity.item())
             update_metric_dict(
-                "loss_sps_w", config.loss_sparsity_weight, average=False
+                "W_lsps", config.loss_low_sparsity_weight, average=False
             )
-            update_metric_dict("s10", s10)
-            update_metric_dict("s50", s50)
-            update_metric_dict("s90", s90)
+            update_metric_dict(
+                "W_hsps", config.loss_high_sparsity_weight, average=False
+            )
+            update_metric_dict("pfi_s10", pfi_s10, verbose=False)
+            update_metric_dict("pfi_s50", pfi_s50, verbose=False)
+            update_metric_dict("pfi_s90", pfi_s90)
+            update_metric_dict("lcfi_s10", lcfi_s10, verbose=False)
+            update_metric_dict("lcfi_s50", lcfi_s50, verbose=False)
+            update_metric_dict("lcfi_s90", lcfi_s90)
+            update_metric_dict("hcfi_s10", hcfi_s10, verbose=False)
+            update_metric_dict("hcfi_s50", hcfi_s50, verbose=False)
+            update_metric_dict("hcfi_s90", hcfi_s90)
+            update_metric_dict("lcfp_s10", lcfp_s10, verbose=False)
+            update_metric_dict("lcfp_s50", lcfp_s50, verbose=False)
+            update_metric_dict("lcfp_s90", lcfp_s90)
+            update_metric_dict("hcfp_s10", hcfp_s10, verbose=False)
+            update_metric_dict("hcfp_s50", hcfp_s50, verbose=False)
+            update_metric_dict("hcfp_s90", hcfp_s90)
+            update_metric_dict("lfh_s10", lfh_s10, verbose=False)
+            update_metric_dict("lfh_s50", lfh_s50, verbose=False)
+            update_metric_dict("lfh_s90", lfh_s90)
 
-            pbar.set_postfix(metric_dict)
+            pbar.set_postfix(screen_dict)
             pbar.update(1)
 
             step += 1
-    return attention, label
+    return (
+        label,
+        patch_low_concept_attention_weight,
+        patch_high_concept_attention_weight,
+        image_low_concept_attention_weight,
+        image_high_concept_attention_weight,
+        low_high_hierarchy
+    )
 
 
 desc = f"Training"
-train_attention, train_label = run_epoch(
-    desc, model, train_loader, train_classes_idx, metric_prefix="train_"
+(
+    train_label,
+    train_patch_low_concept_attention_weight,
+    train_patch_high_concept_attention_weight,
+    train_image_low_concept_attention_weight,
+    train_image_high_concept_attention_weight,
+    train_low_high_hierarchy
+) = run_epoch(
+    desc, model, train_loader, train_acc_mask_idx, metric_prefix="train_"
 )
 
 desc = f"Evaluate"
-eval_attention, eval_label = run_epoch(
-    desc, model, eval_loader, eval_classes_idx, metric_prefix="val_"
+(
+    eval_label,
+    eval_patch_low_concept_attention_weight,
+    eval_patch_high_concept_attention_weight,
+    eval_image_low_concept_attention_weight,
+    eval_image_high_concept_attention_weight,
+    eval_low_high_hierarchy
+) = run_epoch(
+    desc, model, eval_loader, eval_acc_mask_idx, metric_prefix="val_"
 )
 
 desc = f"MajorVal"
-eval_major_attention, eval_major_label = run_epoch(
-    desc, model, eval_major_loader, eval_major_classes_idx, metric_prefix="major_"
+(
+    eval_major_label,
+    eval_major_patch_low_concept_attention_weight,
+    eval_major_patch_high_concept_attention_weight,
+    eval_major_image_low_concept_attention_weight,
+    eval_major_image_high_concept_attention_weight,
+    eval_major_low_high_hierarchy
+) = run_epoch(
+    desc, model, eval_major_loader, eval_major_acc_mask_idx, metric_prefix="major_"
 )
 
 desc = f"MinorVal"
-eval_minor_attention, eval_minor_label = run_epoch(
-    desc, model, eval_minor_loader, eval_minor_classes_idx, metric_prefix="minor_"
+(
+    eval_minor_label,
+    eval_minor_patch_low_concept_attention_weight,
+    eval_minor_patch_high_concept_attention_weight,
+    eval_minor_image_low_concept_attention_weight,
+    eval_minor_image_high_concept_attention_weight,
+    eval_minor_low_high_hierarchy
+) = run_epoch(
+    desc, model, eval_minor_loader, eval_minor_acc_mask_idx, metric_prefix="minor_"
 )
 
 
 analyze_label = np.concatenate(train_label, axis=0)
-analyze_attention = np.concatenate(train_attention, axis=0)
+# analyze_patch_low_concept_attention_weight = np.concatenate(
+#     train_patch_low_concept_attention_weight, axis=0
+# )
+analyze_patch_high_concept_attention_weight = np.concatenate(
+    train_patch_high_concept_attention_weight, axis=0
+)
+analyze_image_low_concept_attention_weight = np.concatenate(
+    train_image_low_concept_attention_weight, axis=0
+)
+analyze_image_high_concept_attention_weight = np.concatenate(
+    train_image_high_concept_attention_weight, axis=0
+)
+visual_image_low_concept_attention_weight = np.concatenate(
+    eval_major_image_low_concept_attention_weight, axis=0
+)
+visual_image_high_concept_attention_weight = np.concatenate(
+    eval_major_image_high_concept_attention_weight, axis=0
+)
+analyze_low_high_hierarchy = train_low_high_hierarchy
 
-label2name_dict = {value: key for key,
-                   value in train_dataset.class_to_idx.items()}
+analyze_label2name_dict = {
+    value: key for key, value in train_dataset.class_to_idx.items()
+}
 
-label_concept_count_dict = dict()
+image_high_concept_attention_weight_per_label = dict()
+for label, attention in zip(analyze_label, analyze_image_high_concept_attention_weight):
+    if label not in image_high_concept_attention_weight_per_label.keys():
+        image_high_concept_attention_weight_per_label[label] = []
+    image_high_concept_attention_weight_per_label[label].append(attention)
+label_high_concept_attention_weight = dict()
+for label, attention_list in image_high_concept_attention_weight_per_label.items():
+    assert label not in label_high_concept_attention_weight.keys()
+    label_high_concept_attention_weight[label] = np.mean(
+        attention_list, axis=0)
 
-for label, attention in zip(analyze_label, analyze_attention):
-    if label not in label_concept_count_dict.keys():
-        label_concept_count_dict[label] = np.zeros_like(
-            attention, dtype=int
+image_low_concept_attention_weight_per_label = dict()
+for label, attention in zip(analyze_label, analyze_image_low_concept_attention_weight):
+    if label not in image_low_concept_attention_weight_per_label.keys():
+        image_low_concept_attention_weight_per_label[label] = []
+    image_low_concept_attention_weight_per_label[label].append(attention)
+label_low_concept_attention_weight = dict()
+for label, attention_list in image_low_concept_attention_weight_per_label.items():
+    assert label not in label_low_concept_attention_weight.keys()
+    label_low_concept_attention_weight[label] = np.mean(attention_list, axis=0)
+
+
+def summarize_label_concept(label_concept_attention_weight, threshold):
+    label_concept_dict = dict()
+    for label, attention_weight in label_concept_attention_weight.items():
+        indices = np.where(attention_weight > threshold)
+        values = attention_weight[indices]
+        concept_dict = dict(zip(indices[0], values))
+        label_concept_dict[label] = dict(
+            sorted(concept_dict.items(), key=lambda x: x[1], reverse=True)
         )
-    indices = np.where(attention > 0.0)
-    label_concept_count_dict[label][indices] += 1
+    return dict(sorted(label_concept_dict.items(), key=lambda x: x[0]))
 
-label_concept_dict = dict()
 
-for label, count in label_concept_count_dict.items():
-    concept_count_dict = {
-        i: val for i,
-        val in enumerate(count) if val > 0
-    }
-    label_concept_dict[label] = {
-        k: v for k, v in sorted(
-            concept_count_dict.items(),
-            key=lambda item: (-item[1], item[0])
+label_high_concept_dict = summarize_label_concept(
+    label_high_concept_attention_weight, 0.1
+)
+label_low_concept_dict = summarize_label_concept(
+    label_low_concept_attention_weight, 0.01
+)
+
+
+def summary_concept_label(label_concept_dict):
+    concept_label_dict = dict()
+    for label, concept_dict in label_concept_dict.items():
+        for concept, weight in concept_dict.items():
+            if concept not in concept_label_dict.keys():
+                concept_label_dict[concept] = dict()
+            concept_label_dict[concept][label] = weight
+    for concept, label_dict in concept_label_dict.items():
+        concept_label_dict[concept] = dict(
+            sorted(label_dict.items(), key=lambda x: x[1], reverse=True)
         )
-    }
-
-concept_label_dict = dict()
-for label, concept_count_dict in label_concept_dict.items():
-    for concept, count in concept_count_dict.items():
-        if concept not in concept_label_dict.keys():
-            concept_label_dict[concept] = dict()
-        concept_label_dict[concept][label] = count
-for concept, label_count_dict in concept_label_dict.items():
-    concept_label_dict[concept] = {
-        k: v for k, v in sorted(
-            label_count_dict.items(),
-            key=lambda item: (-item[1], item[0])
-        )
-    }
-
-sorted_dict_items = sorted(label_concept_dict.items(), key=lambda x: x[0])
-label_concept_dict = dict(sorted_dict_items)
-
-sorted_dict_items = sorted(concept_label_dict.items(), key=lambda x: x[0])
-concept_label_dict = dict(sorted_dict_items)
+    return dict(sorted(concept_label_dict.items(), key=lambda x: x[0]))
 
 
-train_images = [sample[0] for sample in train_dataset.samples]
+high_concept_label_dict = summary_concept_label(label_high_concept_dict)
+low_concept_label_dict = summary_concept_label(label_low_concept_dict)
+
+
+def summary_high_low(low_high_hierarchy):
+    high_low_dict = dict()
+    rows, cols = np.where(low_high_hierarchy > 0)
+    for col, row in zip(cols, rows):
+        if col not in high_low_dict.keys():
+            high_low_dict[col] = []
+        high_low_dict[col].append(row)
+    return dict(sorted(high_low_dict.items(), key=lambda x: x[0]))
+
+
+high_low_dict = summary_high_low(analyze_low_high_hierarchy)
+
+# visual_images = [sample[0] for sample in train_dataset.samples]
+visual_images = [sample[0] for sample in eval_major_dataset.samples]
 
 
 def get_top_k_filenames(filenames, arr, k):
@@ -444,7 +749,12 @@ def get_top_k_filenames(filenames, arr, k):
 
 
 m = 10
-concept_images = get_top_k_filenames(train_images, analyze_attention, m * m)
+high_concept_images = get_top_k_filenames(
+    visual_images, visual_image_high_concept_attention_weight, m * m
+)
+low_concept_images = get_top_k_filenames(
+    visual_images, visual_image_low_concept_attention_weight, m * m
+)
 
 
 def stitch_images(image_paths, m):
@@ -498,14 +808,30 @@ def copy_files_to_folder(file_list, target_folder):
             print(f"Warning: {file_path} is not a valid file.")
 
 
-for i, image_paths in enumerate(concept_images):
+for i, image_paths in enumerate(high_concept_images):
+    if i not in high_low_dict.keys():
+        continue
     output_dir = os.path.join(
         os.path.dirname(config.load_checkpoint_path),
-        config.checkpoint_desc
+        config.checkpoint_desc,
+        "high_concept_images"
     )
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
     result_image = stitch_images(image_paths, m)
-    result_image.save(os.path.join(output_dir, f"concept_{i}.jpg"))
+    result_image.save(os.path.join(output_dir, f"high_concept_{i}.jpg"))
     copy_files_to_folder(image_paths, os.path.join(
-        output_dir, f"concept_{i}_top_images"))
+        output_dir, f"high_concept_{i}_top_images"))
+
+for i, image_paths in enumerate(low_concept_images):
+    output_dir = os.path.join(
+        os.path.dirname(config.load_checkpoint_path),
+        config.checkpoint_desc,
+        "low_concept_images"
+    )
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+    result_image = stitch_images(image_paths, m)
+    result_image.save(os.path.join(output_dir, f"low_concept_{i}.jpg"))
+    copy_files_to_folder(image_paths, os.path.join(
+        output_dir, f"low_concept_{i}_top_images"))

@@ -49,7 +49,7 @@ seed_task_elements = {
     "warmup_epochs": 10,
     "batch_size": 128,
     "learning_rate": 5e-4,
-    "save_interval": 1
+    "save_interval": 100
 }
 
 

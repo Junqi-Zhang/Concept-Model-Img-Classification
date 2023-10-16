@@ -53,11 +53,17 @@ parser.add_argument("--norm_high_concepts", default="False")
 parser.add_argument("--num_attended_high_concepts", default=0, type=int)
 parser.add_argument("--low_high_max_function", default="", type=str)
 parser.add_argument("--output_high_concepts_type", default="", type=str)
+parser.add_argument("--learnable_hierarchy", default="False")
 parser.add_argument("--detach_low_concepts", default="False")
 parser.add_argument("--image_low_concept_num_heads", default=0, type=int)
 parser.add_argument("--image_low_concept_keep_head_dim", default="True")
 parser.add_argument("--image_low_concept_max_function", default="", type=str)
 parser.add_argument("--image_low_concept_max_smoothing",
+                    default=0.0, type=float)
+parser.add_argument("--image_high_concept_num_heads", default=0, type=int)
+parser.add_argument("--image_high_concept_keep_head_dim", default="True")
+parser.add_argument("--image_high_concept_max_function", default="", type=str)
+parser.add_argument("--image_high_concept_max_smoothing",
                     default=0.0, type=float)
 parser.add_argument("--patch_low_concept_num_heads", default=0, type=int)
 parser.add_argument("--patch_low_concept_keep_head_dim", default="True")
@@ -104,9 +110,12 @@ args = parser.parse_args()
 args.detach_text_embeds = eval(args.detach_text_embeds)
 args.norm_low_concepts = eval(args.norm_low_concepts)
 args.norm_high_concepts = eval(args.norm_high_concepts)
+args.learnable_hierarchy = eval(args.learnable_hierarchy)
 args.detach_low_concepts = eval(args.detach_low_concepts)
 args.image_low_concept_keep_head_dim = eval(
     args.image_low_concept_keep_head_dim)
+args.image_high_concept_keep_head_dim = eval(
+    args.image_high_concept_keep_head_dim)
 args.patch_low_concept_keep_head_dim = eval(
     args.patch_low_concept_keep_head_dim)
 args.image_patch_keep_head_dim = eval(args.image_patch_keep_head_dim)
@@ -564,10 +573,14 @@ def run_epoch(desc, model, dataloader, acc_mask_idx, train=False, metric_prefix=
                 acc_subset = (torch.argmax(returned_dict["outputs"].data * mask,
                                            1) == targets).sum() / targets.size(0)
 
-                aux_acc = (torch.argmax(returned_dict["aux_outputs"].data,
-                                        1) == targets).sum() / targets.size(0)
-                aux_acc_subset = (torch.argmax(returned_dict["aux_outputs"].data * mask,
-                                               1) == targets).sum() / targets.size(0)
+                if returned_dict.get("aux_outputs", None) is not None:
+                    aux_acc = (torch.argmax(returned_dict["aux_outputs"].data,
+                                            1) == targets).sum() / targets.size(0)
+                    aux_acc_subset = (torch.argmax(returned_dict["aux_outputs"].data * mask,
+                                                   1) == targets).sum() / targets.size(0)
+                else:
+                    aux_acc = torch.tensor(0.0)
+                    aux_acc_subset = torch.tensor(0.0)
 
                 pfi_s10, pfi_s50, pfi_s90 = custom_quantile(
                     returned_dict=returned_dict,

@@ -21,14 +21,14 @@ seed_task_elements = {
     "image_dim": 512,
     "text_embeds_path": "pre-trained/imagenet_zeroshot_simple_classifier.pt",
     "detach_text_embeds": True,
-    "num_low_concepts": 512,
+    "num_low_concepts": 1024,
     "norm_low_concepts": False,
-    "num_attended_low_concepts": 512,
-    "num_high_concepts": 64,
+    "num_attended_low_concepts": 1024,
+    "num_high_concepts": 256,
     "norm_high_concepts": False,
-    "num_attended_high_concepts": 64,
+    "num_attended_high_concepts": 256,
     "low_high_max_function": "hard_gumbel",
-    "output_high_concepts_type": "aggregated_low",
+    "output_high_concepts_type": "original_high",
     "learnable_hierarchy": False,
     "detach_low_concepts": True,
     "image_high_concept_num_heads": 64,
@@ -61,14 +61,14 @@ def generate_tasks(seed_task_elements, parallel, gpus):
 
     tasks = []
 
-    # task 1
-    new_task_element = seed_task_elements.copy()
-    tasks.append(new_task_element)
+    # # task 1
+    # new_task_element = seed_task_elements.copy()
+    # tasks.append(new_task_element)
 
-    # task 2
-    new_task_element = seed_task_elements.copy()
-    new_task_element["detach_low_concepts"] = False
-    tasks.append(new_task_element)
+    # # task 2
+    # new_task_element = seed_task_elements.copy()
+    # new_task_element["detach_low_concepts"] = False
+    # tasks.append(new_task_element)
 
     # task 3
     new_task_element = seed_task_elements.copy()

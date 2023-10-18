@@ -580,7 +580,8 @@ class Conceptualizer(nn.Module):
                  n_head: int,
                  keep_head_dim: bool,
                  max_function_name: str,
-                 max_smoothing: float = 0.0):
+                 max_smoothing: float = 0.0,
+                 threshold: float = None):
         super(Conceptualizer, self).__init__()
 
         self.conceptual_attention = ConfigurableMultiHeadAttention(
@@ -589,7 +590,8 @@ class Conceptualizer(nn.Module):
             n_head=n_head,
             keep_head_dim=keep_head_dim,
             max_function_name=max_function_name,
-            max_smoothing=max_smoothing
+            max_smoothing=max_smoothing,
+            threshold=threshold
         )
 
     def forward(self, x: torch.Tensor, concepts: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
@@ -765,7 +767,8 @@ class MaskedConceptualPool2d(nn.Module):
                  patch_concept_n_head: int,
                  patch_concept_keep_head_dim: bool,
                  patch_concept_max_function_name: str,
-                 patch_concept_max_smoothing: float):
+                 patch_concept_max_smoothing: float,
+                 patch_concept_threshold: float = None):
         super(MaskedConceptualPool2d, self).__init__()
 
         # positional embedding initialization
@@ -789,7 +792,8 @@ class MaskedConceptualPool2d(nn.Module):
             n_head=patch_concept_n_head,
             keep_head_dim=patch_concept_keep_head_dim,
             max_function_name=patch_concept_max_function_name,
-            max_smoothing=patch_concept_max_smoothing
+            max_smoothing=patch_concept_max_smoothing,
+            threshold=patch_concept_threshold
         )
 
     def forward(self, patches: torch.Tensor, concepts: torch.Tensor, concept_mask: Optional[torch.Tensor] = None) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
@@ -1103,6 +1107,7 @@ class TopDownHierConceptualPool2d(nn.Module):
                  image_high_concept_keep_head_dim: bool,
                  image_high_concept_max_function_name: str,
                  image_high_concept_max_smoothing: float,
+                 image_high_concept_threshold: float,
                  image_patch_n_head: int,
                  image_patch_keep_head_dim: bool,
                  image_patch_max_function_name: str,
@@ -1110,7 +1115,8 @@ class TopDownHierConceptualPool2d(nn.Module):
                  patch_low_concept_n_head: int,
                  patch_low_concept_keep_head_dim: bool,
                  patch_low_concept_max_function_name: str,
-                 patch_low_concept_max_smoothing: float):
+                 patch_low_concept_max_smoothing: float,
+                 patch_low_concept_threshold: float):
         super(TopDownHierConceptualPool2d, self).__init__()
 
         self.high_conceptualizer = Conceptualizer(
@@ -1119,7 +1125,8 @@ class TopDownHierConceptualPool2d(nn.Module):
             n_head=image_high_concept_n_head,
             keep_head_dim=image_high_concept_keep_head_dim,
             max_function_name=image_high_concept_max_function_name,
-            max_smoothing=image_high_concept_max_smoothing
+            max_smoothing=image_high_concept_max_smoothing,
+            threshold=image_high_concept_threshold
         )
 
         self.low_conceptual_pooling = MaskedConceptualPool2d(
@@ -1133,7 +1140,8 @@ class TopDownHierConceptualPool2d(nn.Module):
             patch_concept_n_head=patch_low_concept_n_head,
             patch_concept_keep_head_dim=patch_low_concept_keep_head_dim,
             patch_concept_max_function_name=patch_low_concept_max_function_name,
-            patch_concept_max_smoothing=patch_low_concept_max_smoothing
+            patch_concept_max_smoothing=patch_low_concept_max_smoothing,
+            patch_concept_threshold=patch_low_concept_threshold
         )
 
     def forward(self, patches: torch.Tensor, low_concepts: torch.Tensor, high_concepts: torch.Tensor, low_high_hierarchy: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
@@ -1225,6 +1233,7 @@ class OriTextTopDownHierConceptPoolResNet(nn.Module):
             image_high_concept_keep_head_dim=self.image_high_concept_keep_head_dim,
             image_high_concept_max_function_name=self.image_high_concept_max_function_name,
             image_high_concept_max_smoothing=self.image_high_concept_max_smoothing,
+            image_high_concept_threshold=self.image_high_concept_threshold,
             image_patch_n_head=self.image_patch_n_head,
             image_patch_keep_head_dim=self.image_patch_keep_head_dim,
             image_patch_max_function_name=self.image_patch_max_function_name,
@@ -1232,7 +1241,8 @@ class OriTextTopDownHierConceptPoolResNet(nn.Module):
             patch_low_concept_n_head=self.patch_low_concept_n_head,
             patch_low_concept_keep_head_dim=self.patch_low_concept_keep_head_dim,
             patch_low_concept_max_function_name=self.patch_low_concept_max_function_name,
-            patch_low_concept_max_smoothing=self.patch_low_concept_max_smoothing
+            patch_low_concept_max_smoothing=self.patch_low_concept_max_smoothing,
+            patch_low_concept_threshold=self.patch_low_concept_threshold
         )
 
         self.contrast = ContrastImageTextEmbeds(embed_dim=self.contrastive_dim)
@@ -1269,6 +1279,8 @@ class OriTextTopDownHierConceptPoolResNet(nn.Module):
             "image_high_concept_max_function")
         self.image_high_concept_max_smoothing = config.get(
             "image_high_concept_max_smoothing")
+        self.image_high_concept_threshold = config.get(
+            "image_high_concept_threshold")
 
         self.image_patch_n_head = config.get("image_patch_num_heads")
         self.image_patch_keep_head_dim = config.get(
@@ -1286,6 +1298,8 @@ class OriTextTopDownHierConceptPoolResNet(nn.Module):
             "patch_low_concept_max_function")
         self.patch_low_concept_max_smoothing = config.get(
             "patch_low_concept_max_smoothing")
+        self.patch_low_concept_threshold = config.get(
+            "patch_low_concept_threshold")
 
         self.contrastive_dim = config.get("contrastive_dim")
 

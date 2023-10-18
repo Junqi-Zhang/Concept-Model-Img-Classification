@@ -66,12 +66,14 @@ parser.add_argument("--image_high_concept_keep_head_dim", default="True")
 parser.add_argument("--image_high_concept_max_function", default="", type=str)
 parser.add_argument("--image_high_concept_max_smoothing",
                     default=0.0, type=float)
+parser.add_argument("--image_high_concept_threshold", default=None, type=float)
 parser.add_argument("--patch_low_concept_num_heads", default=0, type=int)
 parser.add_argument("--patch_low_concept_keep_head_dim", default="True")
 parser.add_argument("--patch_low_concept_max_function",
                     default="", type=str)
 parser.add_argument("--patch_low_concept_max_smoothing",
                     default=0.0, type=float)
+parser.add_argument("--patch_low_concept_threshold", default=None, type=float)
 parser.add_argument("--image_patch_num_heads", default=0, type=int)
 parser.add_argument("--image_patch_keep_head_dim", default="True")
 parser.add_argument("--image_patch_max_function", default="", type=str)

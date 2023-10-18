@@ -52,27 +52,26 @@ def get_callable_backbone(backbone_name: str) -> Callable:
         raise ValueError(f"Invalid backbone name: {backbone_name}")
 
 
-def get_max_function(max_function_name: str, dim: int = -1) -> Any:
+def get_max_function(max_function_name: str, dim: int = -1, threshold=None) -> Any:
     """
-    Returns a PyTorch module for performing max operation along a specified dimension.
+    Returns a max function given its name and optional arguments.
 
     Args:
-        max_function_name (str): The name of the max function to use. Valid values are "softmax", "sparsemax", "gumbel", and "hard_gumbel".
-        dim (int, optional): The dimension along which to apply the max function. Default: -1.
+        max_function_name (str): The name of the max function to return.
+        dim (int): The dimension along which to apply the max function.
+        threshold (float): The threshold value for thresholded max functions.
 
     Returns:
-        A PyTorch module for performing max operation along the specified dimension.
+        Any: The max function.
 
     Raises:
-        ValueError: If `max_function_name` is not one of the valid values.
-
-    Examples:
-        >>> max_fn = get_max_function("softmax", 1)
-        >>> x = torch.randn(2, 3)
-        >>> y = max_fn(x)
+        ValueError: If an invalid max function name is provided.
     """
     max_functions = {
         "softmax": nn.Softmax(dim=dim),
+        "hardmax": Hardmax(dim=dim),
+        "thresholded_softmax": ThresholdedSoftmax(hard=False, dim=dim, threshold=threshold),
+        "hard_thresholded_softmax": ThresholdedSoftmax(hard=True, dim=dim, threshold=threshold),
         "sparsemax": Sparsemax(dim=dim),
         "gumbel": GumbelSoftmax(dim=dim),
         "hard_gumbel": GumbelSoftmax(hard=True, dim=dim)
@@ -124,6 +123,55 @@ class GumbelSoftmax(nn.Module):
                 memory_format=torch.legacy_contiguous_format
             ).scatter_(self.dim, index, 1.0)
         return logits_hard
+
+
+class ThresholdedSoftmax(nn.Module):
+    """
+    A softmax function with thresholding.
+
+    Args:
+        hard (bool): Whether to use hard thresholding.
+        dim (int): The dimension along which to apply the softmax.
+        threshold (float): The threshold value.
+
+    Returns:
+        Tensor: The thresholded softmax result.
+    """
+
+    def __init__(self, hard: bool, dim: int = -1, threshold: float = 0.0):
+        super(ThresholdedSoftmax, self).__init__()
+        self.hard = hard
+        self.dim = dim
+        self.threshold = threshold
+
+    def forward(self, logits: torch.Tensor) -> torch.Tensor:
+        softmax_result = F.softmax(logits, dim=self.dim)
+        multi_hot_mask = (softmax_result >= self.threshold).float()
+        if self.hard:
+            diff = multi_hot_mask - softmax_result
+        else:
+            diff = multi_hot_mask * softmax_result - softmax_result
+        return diff.detach() + softmax_result
+
+
+class Hardmax(nn.Module):
+    """
+    A hardmax function that returns a one-hot tensor.
+
+    Args:
+        dim (int): The dimension along which to apply the hardmax.
+
+    Returns:
+        Tensor: The one-hot tensor.
+    """
+
+    def __init__(self, dim: int = -1):
+        super(Hardmax, self).__init__()
+        self.dim = dim
+
+    def forward(self, logits):
+        max_index = torch.argmax(logits, dim=self.dim)
+        return F.one_hot(max_index, num_classes=logits.size(self.dim)).float()
 
 
 class ResNet(nn.Module):
@@ -398,6 +446,7 @@ class ConfigurableMultiHeadAttention(nn.Module):
         max_function_name (str): The name of the maximum function to use.
         max_smoothing (float, optional): The smoothing factor for the maximum function. Defaults to 0.0.
         learnable (bool, optional): Whether the attention mechanism is learnable or not. Defaults to True.
+        threshold (float, optional): The threshold value for thresholded max functions. Defaults to None.
     """
 
     def __init__(self,
@@ -407,7 +456,8 @@ class ConfigurableMultiHeadAttention(nn.Module):
                  keep_head_dim: bool,
                  max_function_name: str,
                  max_smoothing: float = 0.0,
-                 learnable: bool = True) -> None:
+                 learnable: bool = True,
+                 threshold: float = None) -> None:
         super(ConfigurableMultiHeadAttention, self).__init__()
 
         self.n_head = n_head
@@ -441,7 +491,8 @@ class ConfigurableMultiHeadAttention(nn.Module):
 
         self.max_function = get_max_function(
             max_function_name=max_function_name,
-            dim=-1
+            dim=-1,
+            threshold=threshold
         )
 
     def smooth_max(self, max_output: torch.Tensor, dim: int = -1) -> torch.Tensor:
@@ -1154,6 +1205,18 @@ class OriTextTopDownHierConceptPoolResNet(nn.Module):
             learnable_hierarchy=self.learnable_hierarchy
         )
 
+        if self.preset_hierarchy:
+            assert self.num_low_concepts % self.num_high_concepts == 0
+            assert self.output_high_concepts_type == "original_high"
+            low_per_high = self.num_low_concepts // self.num_high_concepts
+            self.low_high_hierarchy = torch.zeros(
+                self.num_low_concepts, self.num_high_concepts
+            )
+            for i in range(self.num_high_concepts):
+                self.low_high_hierarchy[
+                    i*low_per_high:(i+1)*low_per_high, i
+                ] = 1.0
+
         self.hierarchical_conceptual_pooling = TopDownHierConceptualPool2d(
             spacial_dim=self.spacial_dim,
             feature_dim=self.image_dim,
@@ -1195,6 +1258,7 @@ class OriTextTopDownHierConceptPoolResNet(nn.Module):
         self.output_high_concepts_type = config.get(
             "output_high_concepts_type")
         self.learnable_hierarchy = config.get("learnable_hierarchy")
+        self.preset_hierarchy = config.get("preset_hierarchy")
         self.detach_low_concepts = config.get("detach_low_concepts")
 
         self.image_high_concept_n_head = config.get(
@@ -1237,12 +1301,17 @@ class OriTextTopDownHierConceptPoolResNet(nn.Module):
             low_concept_cosine_similarity,
             high_concepts,  # [N_high, D]
             high_concept_cosine_similarity,
-            low_high_hierarchy  # [N_low, N_high]
+            low_high_hierarchy_based_on_similarity  # [N_low, N_high]
         ) = self.hierarchical_concepts(
             norm_low_concepts=self.norm_low_concepts,
             norm_high_concepts=self.norm_high_concepts,
             detach_low_concepts=self.detach_low_concepts
         )
+
+        if self.preset_hierarchy:
+            low_high_hierarchy = self.low_high_hierarchy
+        else:
+            low_high_hierarchy = low_high_hierarchy_based_on_similarity
 
         image_patches = self.image_encoder(x).flatten(
             start_dim=2

@@ -36,7 +36,7 @@ seed_task_elements = {
     "image_high_concept_max_smoothing": 0.0,
     "patch_low_concept_num_heads": 1,
     "patch_low_concept_max_function": "sparsemax",
-    "patch_low_concept_max_smoothing": 0.0,
+    "patch_low_concept_max_smoothing": 0.3,
     "image_patch_num_heads": 1,
     "image_patch_max_function": "softmax",
     "image_patch_max_smoothing": 0.0,

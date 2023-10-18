@@ -1211,7 +1211,7 @@ class OriTextTopDownHierConceptPoolResNet(nn.Module):
             low_per_high = self.num_low_concepts // self.num_high_concepts
             self.low_high_hierarchy = torch.zeros(
                 self.num_low_concepts, self.num_high_concepts
-            )
+            ).to("cuda" if torch.cuda.is_available() else "cpu")
             for i in range(self.num_high_concepts):
                 self.low_high_hierarchy[
                     i*low_per_high:(i+1)*low_per_high, i

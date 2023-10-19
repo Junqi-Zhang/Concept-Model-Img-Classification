@@ -152,7 +152,7 @@ class ThresholdedSoftmax(nn.Module):
         else:
             activated_result = multi_hot_mask * softmax_result
             normalized_result = activated_result / \
-                activated_result.sum(dim=self.dim, keepdim=True)
+                activated_result.sum(dim=self.dim, keepdim=True) + 1e-10
             diff = normalized_result - softmax_result
         return diff.detach() + softmax_result
 

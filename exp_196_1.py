@@ -29,13 +29,13 @@ seed_task_elements = {
     "num_attended_high_concepts": 64,
     "low_high_max_function": "hardmax",
     "output_high_concepts_type": "original_high",
-    "learnable_hierarchy": True,
-    "preset_hierarchy": False,
+    "learnable_hierarchy": False,
+    "preset_hierarchy": True,
     "detach_low_concepts": True,
     "image_high_concept_num_heads": 1,
     "image_high_concept_max_function": "thresholded_softmax",
     "image_high_concept_max_smoothing": 0.0,
-    "image_high_concept_threshold": 1e-2,
+    "image_high_concept_threshold": 1/64,
     "patch_low_concept_num_heads": 1,
     "patch_low_concept_max_function": "sparsemax",
     "patch_low_concept_max_smoothing": 0.0,
@@ -48,7 +48,7 @@ seed_task_elements = {
     "loss_low_diversity_weight": 0.0,
     "loss_high_sparsity_weight": 0.0,
     "loss_high_sparsity_adaptive": False,
-    "loss_high_diversity_weight": 1.0,
+    "loss_high_diversity_weight": 0.0,
     "loss_aux_classification_weight": 1.0,
     "supplementary_description": "Test OriTextTopDownHierConceptPoolResNet on zero-shot dataset",
     "num_epochs": 1000,
@@ -69,18 +69,7 @@ def generate_tasks(seed_task_elements, parallel, gpus):
 
     # task 2
     new_task_element = seed_task_elements.copy()
-    new_task_element["detach_low_concepts"] = False
-    tasks.append(new_task_element)
-
-    # task 3
-    new_task_element = seed_task_elements.copy()
-    new_task_element["loss_high_diversity_weight"] = 0.0
-    tasks.append(new_task_element)
-
-    # task 4
-    new_task_element = seed_task_elements.copy()
-    new_task_element["detach_low_concepts"] = False
-    new_task_element["loss_high_diversity_weight"] = 0.0
+    new_task_element["image_high_concept_threshold"] = 1e-2
     tasks.append(new_task_element)
 
     if parallel:

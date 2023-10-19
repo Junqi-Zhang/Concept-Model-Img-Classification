@@ -1378,11 +1378,103 @@ class OriTextTopDownHierConceptPoolResNet(nn.Module):
         }
 
 
+class ConceptualTextTopDownHierConceptPoolResNet(OriTextTopDownHierConceptPoolResNet):
+    def __init__(self, config: Recorder):
+        super(ConceptualTextTopDownHierConceptPoolResNet, self).__init__(config)
+        self.text_high_conceptualizer = Conceptualizer(
+            feature_dim=self.text_dim,
+            concept_dim=self.concept_dim,
+            n_head=self.image_high_concept_n_head,
+            keep_head_dim=self.image_high_concept_keep_head_dim,
+            max_function_name=self.image_high_concept_max_function_name,
+            max_smoothing=self.image_high_concept_max_smoothing,
+            threshold=self.image_high_concept_threshold
+        )
+        # Scaling factor for the logit of the contrast
+        # between high_concept_attention_weight image and text
+        self.high_concept_attention_weight_contrast_logit_scaler = nn.Parameter(
+            torch.tensor(0.0)
+        )
+
+    def forward(self, x: torch.Tensor, classes_idx: List) -> Dict[str, torch.Tensor]:
+        (
+            low_concepts,  # [N_low, D]
+            low_concept_cosine_similarity,
+            high_concepts,  # [N_high, D]
+            high_concept_cosine_similarity,
+            low_high_hierarchy_based_on_similarity  # [N_low, N_high]
+        ) = self.hierarchical_concepts(
+            norm_low_concepts=self.norm_low_concepts,
+            norm_high_concepts=self.norm_high_concepts,
+            detach_low_concepts=self.detach_low_concepts
+        )
+
+        if self.preset_hierarchy:
+            low_high_hierarchy = self.low_high_hierarchy
+        else:
+            low_high_hierarchy = low_high_hierarchy_based_on_similarity
+
+        image_patches = self.image_encoder(x).flatten(
+            start_dim=2
+        ).permute(0, 2, 1)  # [B, D_q, H, W] -> [B, H*W, D_q]
+        assert self.image_dim == image_patches.size(-1)
+
+        (
+            low_conceptual_image,  # [B, D_kv]
+            high_conceptual_image,  # [B, D_kv]
+            image_patch_attention_weight,  # [B, H*W]
+            image_low_concept_attention_weight,  # [B, N_low]
+            image_high_concept_attention_weight,  # [B, N_high]
+            patch_low_concept_attention_weight,  # [B, H*W, N_low]
+            patch_high_concept_attention_weight  # [B, H*W, N_high]
+        ) = self.hierarchical_conceptual_pooling(
+            patches=image_patches,
+            low_concepts=low_concepts,
+            high_concepts=high_concepts,
+            low_high_hierarchy=low_high_hierarchy
+        )
+
+        assert self.concept_dim == low_conceptual_image.size(1)
+        assert self.concept_dim == high_conceptual_image.size(1)
+
+        text_embeds = self.text_encoder(classes_idx)
+        (
+            high_conceptual_text,
+            text_high_concept_attention_weight
+        ) = self.text_high_conceptualizer(text_embeds, high_concepts)
+
+        assert self.concept_dim == high_conceptual_text.size(1)
+
+        outputs = self.contrast(
+            image_embeds=low_conceptual_image,
+            text_embeds=high_conceptual_text
+        )
+
+        aux_outputs = torch.matmul(
+            image_high_concept_attention_weight,
+            text_high_concept_attention_weight.t()
+        ) * self.high_concept_attention_weight_contrast_logit_scaler.exp()
+
+        return {
+            "outputs": outputs,
+            "aux_outputs": aux_outputs,
+            "image_patch_attention_weight": image_patch_attention_weight,
+            "image_low_concept_attention_weight": image_low_concept_attention_weight,
+            "image_high_concept_attention_weight": image_high_concept_attention_weight,
+            "patch_low_concept_attention_weight": patch_low_concept_attention_weight,
+            "patch_high_concept_attention_weight": patch_high_concept_attention_weight,
+            "low_concept_cosine_similarity": low_concept_cosine_similarity,
+            "high_concept_cosine_similarity": high_concept_cosine_similarity,
+            "low_high_hierarchy": low_high_hierarchy
+        }
+
+
 MODELS = OrderedDict(
     {
         "OriTextResNet": OriTextResNet,
         "OriTextConceptualResNet": OriTextConceptualResNet,
         "OriTextConceptPoolResNet": OriTextConceptPoolResNet,
-        "OriTextTopDownHierConceptPoolResNet": OriTextTopDownHierConceptPoolResNet
+        "OriTextTopDownHierConceptPoolResNet": OriTextTopDownHierConceptPoolResNet,
+        "ConceptualTextTopDownHierConceptPoolResNet": ConceptualTextTopDownHierConceptPoolResNet
     }
 )

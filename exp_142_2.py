@@ -30,7 +30,7 @@ seed_task_elements = {
     "low_high_max_function": "hardmax",
     "output_high_concepts_type": "original_high",
     "learnable_hierarchy": False,
-    "preset_hierarchy": False,
+    "preset_hierarchy": True,
     "detach_low_concepts": True,
     "image_high_concept_num_heads": 1,
     "image_high_concept_max_function": "sparsemax",

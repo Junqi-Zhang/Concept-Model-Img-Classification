@@ -21,19 +21,19 @@ seed_task_elements = {
     "image_dim": 512,
     "text_embeds_path": "pre-trained/imagenet_zeroshot_simple_classifier.pt",
     "detach_text_embeds": True,
-    "num_low_concepts": 512,
+    "num_low_concepts": 1024,
     "norm_low_concepts": False,
-    "num_attended_low_concepts": 512,
+    "num_attended_low_concepts": 1024,
     "num_high_concepts": 64,
     "norm_high_concepts": False,
-    "num_attended_high_concepts": 64,
+    "num_attended_high_concepts": 16,
     "low_high_max_function": "hardmax",
     "output_high_concepts_type": "original_high",
     "learnable_hierarchy": False,
-    "preset_hierarchy": True,
+    "preset_hierarchy": False,
     "detach_low_concepts": True,
-    "image_high_concept_num_heads": 64,
-    "image_high_concept_max_function": "hard_gumbel",
+    "image_high_concept_num_heads": 1,
+    "image_high_concept_max_function": "sparsemax",
     "image_high_concept_max_smoothing": 0.0,
     "patch_low_concept_num_heads": 1,
     "patch_low_concept_max_function": "sparsemax",
@@ -47,7 +47,7 @@ seed_task_elements = {
     "loss_low_diversity_weight": 0.0,
     "loss_high_sparsity_weight": 0.0,
     "loss_high_sparsity_adaptive": False,
-    "loss_high_diversity_weight": 1.0,
+    "loss_high_diversity_weight": 0.01,
     "loss_aux_classification_weight": 1.0,
     "supplementary_description": "Test OriTextTopDownHierConceptPoolResNet on zero-shot dataset",
     "num_epochs": 1000,
@@ -68,18 +68,13 @@ def generate_tasks(seed_task_elements, parallel, gpus):
 
     # task 2
     new_task_element = seed_task_elements.copy()
-    new_task_element["detach_low_concepts"] = False
+    new_task_element["preset_hierarchy"] = False
     tasks.append(new_task_element)
 
     # task 3
     new_task_element = seed_task_elements.copy()
-    new_task_element["loss_high_diversity_weight"] = 0.0
-    tasks.append(new_task_element)
-
-    # task 4
-    new_task_element = seed_task_elements.copy()
-    new_task_element["detach_low_concepts"] = False
-    new_task_element["loss_high_diversity_weight"] = 0.0
+    new_task_element["preset_hierarchy"] = False
+    new_task_element["learnable_hierarchy"] = True
     tasks.append(new_task_element)
 
     if parallel:

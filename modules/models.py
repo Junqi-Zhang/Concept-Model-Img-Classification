@@ -1448,9 +1448,12 @@ class ConceptualTextTopDownHierConceptPoolResNet(OriTextTopDownHierConceptPoolRe
 
         assert self.concept_dim == high_conceptual_text.size(1)
 
+        if self.text_dim != self.contrastive_dim:
+            transformed_text_embeds = self.text_dim_transformer(text_embeds)
+
         outputs = self.contrast(
             image_embeds=low_conceptual_image,
-            text_embeds=high_conceptual_text
+            text_embeds=transformed_text_embeds
         )
 
         aux_outputs = torch.matmul(

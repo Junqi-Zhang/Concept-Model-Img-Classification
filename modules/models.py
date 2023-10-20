@@ -72,6 +72,8 @@ def get_max_function(max_function_name: str, dim: int = -1, threshold=None) -> A
         "hardmax": Hardmax(dim=dim),
         "thresholded_softmax": ThresholdedSoftmax(hard=False, dim=dim, threshold=threshold),
         "hard_thresholded_softmax": ThresholdedSoftmax(hard=True, dim=dim, threshold=threshold),
+        "cum_thresholded_softmax": CumThresholdedSoftmax(hard=False, dim=dim, threshold=threshold),
+        "hard_cum_thresholded_softmax": CumThresholdedSoftmax(hard=True, dim=dim, threshold=threshold),
         "sparsemax": Sparsemax(dim=dim),
         "gumbel": GumbelSoftmax(dim=dim),
         "hard_gumbel": GumbelSoftmax(hard=True, dim=dim)
@@ -152,7 +154,53 @@ class ThresholdedSoftmax(nn.Module):
         else:
             activated_result = multi_hot_mask * softmax_result
             normalized_result = activated_result / \
-                activated_result.sum(dim=self.dim, keepdim=True) + 1e-10
+                (activated_result.sum(dim=self.dim, keepdim=True) + 1e-7)
+            diff = normalized_result - softmax_result
+        return diff.detach() + softmax_result
+
+
+class CumThresholdedSoftmax(nn.Module):
+    """
+    A module that applies a cumulative threshold to the softmax output of a tensor.
+
+    Args:
+        hard (bool): If True, returns a multi-hot tensor with the threshold applied.
+            If False, returns a normalized tensor with the threshold applied.
+        dim (int, optional): The dimension along which to apply the softmax operation.
+            Default is -1.
+        threshold (float, optional): The threshold value to apply to the cumulative sum
+            of the sorted softmax output. Default is 0.0.
+
+    Returns:
+        torch.Tensor: The tensor with the threshold applied to the softmax output.
+    """
+
+    def __init__(self, hard: bool, dim: int = -1, threshold: float = 0.0):
+        super(CumThresholdedSoftmax, self).__init__()
+        self.hard = hard
+        self.dim = dim
+        self.threshold = threshold
+
+    def forward(self, logits: torch.Tensor) -> torch.Tensor:
+        softmax_result = F.softmax(logits, dim=self.dim)
+        sorted_softmax_result, sorted_indices = torch.sort(
+            softmax_result, dim=self.dim, descending=False
+        )
+        cumulative_softmax_result = torch.cumsum(
+            sorted_softmax_result, dim=self.dim
+        )
+        multi_hot_mask = torch.zeros_like(softmax_result)
+        multi_hot_mask.scatter_(
+            self.dim,
+            sorted_indices,
+            1 - (cumulative_softmax_result < self.threshold).float()
+        )
+        if self.hard:
+            diff = multi_hot_mask - softmax_result
+        else:
+            activated_result = multi_hot_mask * softmax_result
+            normalized_result = activated_result / \
+                (activated_result.sum(dim=self.dim, keepdim=True) + 1e-7)
             diff = normalized_result - softmax_result
         return diff.detach() + softmax_result
 

@@ -21,9 +21,9 @@ seed_task_elements = {
     "image_dim": 512,
     "text_embeds_path": "pre-trained/imagenet_zeroshot_simple_classifier.pt",
     "detach_text_embeds": True,
-    "num_low_concepts": 512,
+    "num_low_concepts": 1024,
     "norm_low_concepts": False,
-    "num_attended_low_concepts": 512,
+    "num_attended_low_concepts": 1024,
     "num_high_concepts": 64,
     "norm_high_concepts": False,
     "num_attended_high_concepts": 64,
@@ -68,17 +68,26 @@ def generate_tasks(seed_task_elements, parallel, gpus):
 
     # task 2
     new_task_element = seed_task_elements.copy()
-    new_task_element["loss_aux_classification_weight"] = 0.0
+    new_task_element["image_high_concept_max_function"] = "thresholded_softmax"
+    new_task_element["image_high_concept_threshold"] = 1/64
     tasks.append(new_task_element)
 
     # task 3
     new_task_element = seed_task_elements.copy()
-    new_task_element["preset_hierarchy"] = False
+    new_task_element["image_high_concept_max_function"] = "cum_thresholded_softmax"
+    new_task_element["image_high_concept_threshold"] = 0.05
     tasks.append(new_task_element)
 
     # task 4
     new_task_element = seed_task_elements.copy()
-    new_task_element["loss_high_diversity_weight"] = 1.0
+    new_task_element["image_high_concept_max_function"] = "cum_thresholded_softmax"
+    new_task_element["image_high_concept_threshold"] = 0.1
+    tasks.append(new_task_element)
+
+    # task 5
+    new_task_element = seed_task_elements.copy()
+    new_task_element["image_high_concept_max_function"] = "cum_thresholded_softmax"
+    new_task_element["image_high_concept_threshold"] = 0.2
     tasks.append(new_task_element)
 
     if parallel:

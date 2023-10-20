@@ -21,9 +21,9 @@ seed_task_elements = {
     "image_dim": 512,
     "text_embeds_path": "pre-trained/imagenet_zeroshot_simple_classifier.pt",
     "detach_text_embeds": True,
-    "num_low_concepts": 512,
+    "num_low_concepts": 1024,
     "norm_low_concepts": False,
-    "num_attended_low_concepts": 512,
+    "num_attended_low_concepts": 1024,
     "num_high_concepts": 64,
     "norm_high_concepts": False,
     "num_attended_high_concepts": 64,
@@ -33,13 +33,12 @@ seed_task_elements = {
     "preset_hierarchy": True,
     "detach_low_concepts": True,
     "image_high_concept_num_heads": 1,
-    "image_high_concept_max_function": "thresholded_softmax",
+    "image_high_concept_max_function": "cum_thresholded_softmax",
     "image_high_concept_max_smoothing": 0.0,
-    "image_high_concept_threshold": 1/64,
+    "image_high_concept_threshold": 0.1,
     "patch_low_concept_num_heads": 1,
-    "patch_low_concept_max_function": "thresholded_softmax",
+    "patch_low_concept_max_function": "sparsemax",
     "patch_low_concept_max_smoothing": 0.0,
-    "patch_low_concept_threshold": 1/512,
     "image_patch_num_heads": 1,
     "image_patch_max_function": "softmax",
     "image_patch_max_smoothing": 0.0,
@@ -70,7 +69,20 @@ def generate_tasks(seed_task_elements, parallel, gpus):
 
     # task 2
     new_task_element = seed_task_elements.copy()
-    new_task_element["patch_low_concept_threshold"] = 1e-3
+    new_task_element["patch_low_concept_max_function"] = "cum_thresholded_softmax"
+    new_task_element["patch_low_concept_threshold"] = 0.05
+    tasks.append(new_task_element)
+
+    # task 3
+    new_task_element = seed_task_elements.copy()
+    new_task_element["patch_low_concept_max_function"] = "cum_thresholded_softmax"
+    new_task_element["patch_low_concept_threshold"] = 0.1
+    tasks.append(new_task_element)
+
+    # task 4
+    new_task_element = seed_task_elements.copy()
+    new_task_element["patch_low_concept_max_function"] = "cum_thresholded_softmax"
+    new_task_element["patch_low_concept_threshold"] = 0.2
     tasks.append(new_task_element)
 
     if parallel:

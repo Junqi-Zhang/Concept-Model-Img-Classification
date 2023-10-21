@@ -69,19 +69,19 @@ def generate_tasks(seed_task_elements, parallel, gpus):
     # task 2
     new_task_element = seed_task_elements.copy()
     new_task_element["patch_low_concept_max_function"] = "cum_thresholded_softmax"
-    new_task_element["patch_low_concept_threshold"] = 0.05
+    new_task_element["patch_low_concept_threshold"] = 0.3
     tasks.append(new_task_element)
 
     # task 3
     new_task_element = seed_task_elements.copy()
     new_task_element["patch_low_concept_max_function"] = "cum_thresholded_softmax"
-    new_task_element["patch_low_concept_threshold"] = 0.1
+    new_task_element["patch_low_concept_threshold"] = 0.4
     tasks.append(new_task_element)
 
     # task 4
     new_task_element = seed_task_elements.copy()
     new_task_element["patch_low_concept_max_function"] = "cum_thresholded_softmax"
-    new_task_element["patch_low_concept_threshold"] = 0.2
+    new_task_element["patch_low_concept_threshold"] = 0.5
     tasks.append(new_task_element)
 
     if parallel:

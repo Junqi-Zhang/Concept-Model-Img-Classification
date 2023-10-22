@@ -1441,11 +1441,11 @@ class ConceptualTextTopDownHierConceptPoolResNet(OriTextTopDownHierConceptPoolRe
             max_smoothing=self.image_high_concept_max_smoothing,
             threshold=self.image_high_concept_threshold
         )
-        # Scaling factor for the logit of the contrast
-        # between high_concept_attention_weight image and text
-        self.high_concept_attention_weight_contrast_logit_scaler = nn.Parameter(
-            torch.tensor(0.0)
-        )
+        # # Scaling factor for the logit of the contrast
+        # # between high_concept_attention_weight image and text
+        # self.high_concept_attention_weight_contrast_logit_scaler = nn.Parameter(
+        #     torch.tensor(0.0)
+        # )
 
     def forward(self, x: torch.Tensor, classes_idx: List) -> Dict[str, torch.Tensor]:
         (
@@ -1504,10 +1504,15 @@ class ConceptualTextTopDownHierConceptPoolResNet(OriTextTopDownHierConceptPoolRe
             text_embeds=transformed_text_embeds
         )
 
-        aux_outputs = torch.matmul(
-            image_high_concept_attention_weight,
-            text_high_concept_attention_weight.t()
-        ) * self.high_concept_attention_weight_contrast_logit_scaler.exp()
+        # aux_outputs = torch.matmul(
+        #     image_high_concept_attention_weight,
+        #     text_high_concept_attention_weight.t()
+        # ) * self.high_concept_attention_weight_contrast_logit_scaler.exp()
+        
+        aux_outputs = self.aux_contrast(
+            image_embeds=high_conceptual_image,
+            text_embeds=high_conceptual_text
+        )
 
         return {
             "outputs": outputs,

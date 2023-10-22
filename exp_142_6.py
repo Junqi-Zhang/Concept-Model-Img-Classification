@@ -32,7 +32,7 @@ seed_task_elements = {
     "learnable_hierarchy": False,
     "preset_hierarchy": True,
     "detach_low_concepts": True,
-    "image_high_concept_num_heads": 64,
+    "image_high_concept_num_heads": 4,
     "image_high_concept_max_function": "hard_gumbel",
     "image_high_concept_max_smoothing": 0.0,
     "patch_low_concept_num_heads": 1,
@@ -68,13 +68,17 @@ def generate_tasks(seed_task_elements, parallel, gpus):
 
     # task 2
     new_task_element = seed_task_elements.copy()
-    new_task_element["preset_hierarchy"] = False
+
     tasks.append(new_task_element)
 
     # task 3
     new_task_element = seed_task_elements.copy()
-    new_task_element["preset_hierarchy"] = False
-    new_task_element["learnable_hierarchy"] = True
+    new_task_element["norm_low_concepts"] = True
+    tasks.append(new_task_element)
+
+    # task 4
+    new_task_element = seed_task_elements.copy()
+    new_task_element["detach_text_embeds"] = False
     tasks.append(new_task_element)
 
     if parallel:

@@ -1405,7 +1405,7 @@ class OriTextTopDownHierConceptPoolResNet(nn.Module):
         if self.text_dim != self.contrastive_dim:
             text_embeds = self.text_dim_transformer(text_embeds)
         outputs = self.contrast(
-            image_embeds=low_conceptual_image,
+            image_embeds=low_conceptual_image + high_conceptual_image,
             text_embeds=text_embeds
         )
 
@@ -1500,7 +1500,7 @@ class ConceptualTextTopDownHierConceptPoolResNet(OriTextTopDownHierConceptPoolRe
             transformed_text_embeds = self.text_dim_transformer(text_embeds)
 
         outputs = self.contrast(
-            image_embeds=low_conceptual_image,
+            image_embeds=low_conceptual_image + high_conceptual_image,
             text_embeds=transformed_text_embeds
         )
 
@@ -1508,7 +1508,7 @@ class ConceptualTextTopDownHierConceptPoolResNet(OriTextTopDownHierConceptPoolRe
         #     image_high_concept_attention_weight,
         #     text_high_concept_attention_weight.t()
         # ) * self.high_concept_attention_weight_contrast_logit_scaler.exp()
-        
+
         aux_outputs = self.aux_contrast(
             image_embeds=high_conceptual_image,
             text_embeds=high_conceptual_text

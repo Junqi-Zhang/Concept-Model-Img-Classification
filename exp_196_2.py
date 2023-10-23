@@ -17,10 +17,10 @@ seed_task_elements = {
     "mode": "standard",
     "dataset_name": "Sampled_ImageNet_800x500_200x0_Seed_6",
     "use_model": "OriTextTopDownHierConceptPoolResNet",
-    "backbone_name": "resnet18",
-    "image_dim": 512,
+    "backbone_name": "resnet50",
+    "image_dim": 2048,
     "text_embeds_path": "pre-trained/imagenet_zeroshot_simple_classifier.pt",
-    "detach_text_embeds": True,
+    "detach_text_embeds": False,
     "num_low_concepts": 1024,
     "norm_low_concepts": False,
     "num_attended_low_concepts": 1024,
@@ -32,10 +32,9 @@ seed_task_elements = {
     "learnable_hierarchy": False,
     "preset_hierarchy": True,
     "detach_low_concepts": True,
-    "image_high_concept_num_heads": 1,
-    "image_high_concept_max_function": "cum_thresholded_softmax",
+    "image_high_concept_num_heads": 8,
+    "image_high_concept_max_function": "hard_gumbel",
     "image_high_concept_max_smoothing": 0.0,
-    "image_high_concept_threshold": 0.7,
     "patch_low_concept_num_heads": 1,
     "patch_low_concept_max_function": "sparsemax",
     "patch_low_concept_max_smoothing": 0.0,
@@ -69,20 +68,8 @@ def generate_tasks(seed_task_elements, parallel, gpus):
 
     # task 2
     new_task_element = seed_task_elements.copy()
-    new_task_element["patch_low_concept_max_function"] = "cum_thresholded_softmax"
-    new_task_element["patch_low_concept_threshold"] = 0.6
-    tasks.append(new_task_element)
-
-    # task 3
-    new_task_element = seed_task_elements.copy()
-    new_task_element["patch_low_concept_max_function"] = "cum_thresholded_softmax"
-    new_task_element["patch_low_concept_threshold"] = 0.7
-    tasks.append(new_task_element)
-
-    # task 4
-    new_task_element = seed_task_elements.copy()
-    new_task_element["patch_low_concept_max_function"] = "cum_thresholded_softmax"
-    new_task_element["patch_low_concept_threshold"] = 0.8
+    new_task_element["backbone_name"] = "resnet34"
+    new_task_element["image_dim"] = 512
     tasks.append(new_task_element)
 
     if parallel:

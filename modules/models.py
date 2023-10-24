@@ -1382,6 +1382,7 @@ class OriTextTopDownHierConceptPoolResNet(nn.Module):
             start_dim=2
         ).permute(0, 2, 1)  # [B, D_q, H, W] -> [B, H*W, D_q]
         assert self.image_dim == image_patches.size(-1)
+        image_patches = image_patches / self.image_dim ** 0.5
 
         (
             low_conceptual_image,  # [B, D_kv]
@@ -1405,7 +1406,7 @@ class OriTextTopDownHierConceptPoolResNet(nn.Module):
         if self.text_dim != self.contrastive_dim:
             text_embeds = self.text_dim_transformer(text_embeds)
         outputs = self.contrast(
-            image_embeds=low_conceptual_image + high_conceptual_image,
+            image_embeds=low_conceptual_image,
             text_embeds=text_embeds
         )
 

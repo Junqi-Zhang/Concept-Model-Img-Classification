@@ -62,13 +62,14 @@ def generate_tasks(seed_task_elements, parallel, gpus):
 
     tasks = []
 
-    # task 1
-    new_task_element = seed_task_elements.copy()
-    tasks.append(new_task_element)
+    # # task 1
+    # new_task_element = seed_task_elements.copy()
+    # tasks.append(new_task_element)
 
     # task 2
     new_task_element = seed_task_elements.copy()
     new_task_element["image_high_concept_num_heads"] = 16
+    new_task_element["image_high_concept_max_function"] = "hard_gumbel"
     tasks.append(new_task_element)
 
     if parallel:

@@ -1248,6 +1248,9 @@ class OriTextTopDownHierConceptPoolResNet(nn.Module):
         self.image_encoder = nn.Sequential(
             *list(self.backbone.children())[:-2]
         )
+        self.image_GN = nn.GroupNorm(
+            num_groups=32, num_channels=self.image_dim
+        )
 
         self.text_encoder = TextEncoderSimulator(
             text_embeds_path=self.text_embeds_path
@@ -1378,11 +1381,11 @@ class OriTextTopDownHierConceptPoolResNet(nn.Module):
         else:
             low_high_hierarchy = low_high_hierarchy_based_on_similarity
 
-        image_patches = self.image_encoder(x).flatten(
+        image_patches = self.image_GN(self.image_encoder(x)).flatten(
             start_dim=2
         ).permute(0, 2, 1)  # [B, D_q, H, W] -> [B, H*W, D_q]
         assert self.image_dim == image_patches.size(-1)
-        image_patches = image_patches / self.image_dim ** 0.5
+        # image_patches = image_patches / self.image_dim ** 0.5
 
         (
             low_conceptual_image,  # [B, D_kv]

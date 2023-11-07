@@ -62,9 +62,9 @@ def generate_tasks(seed_task_elements, parallel, gpus):
 
     tasks = []
 
-    # task 1
-    new_task_element = seed_task_elements.copy()
-    tasks.append(new_task_element)
+    # # task 1
+    # new_task_element = seed_task_elements.copy()
+    # tasks.append(new_task_element)
 
     # task 2
     new_task_element = seed_task_elements.copy()

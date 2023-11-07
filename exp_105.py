@@ -16,11 +16,11 @@ parser.add_argument("--gpus", default=[0], type=int, nargs="*")
 seed_task_elements = {
     "mode": "standard",
     "dataset_name": "Sampled_ImageNet_800x500_200x0_Seed_6",
-    "use_model": "ConceptualTextTopDownHierConceptPoolResNet",
+    "use_model": "OriTextTopDownHierConceptPoolResNet",
     "backbone_name": "resnet18",
     "image_dim": 512,
     "text_embeds_path": "pre-trained/imagenet_zeroshot_simple_classifier.pt",
-    "detach_text_embeds": True,
+    "detach_text_embeds": False,
     "num_low_concepts": 1024,
     "norm_low_concepts": False,
     "num_attended_low_concepts": 1024,
@@ -32,8 +32,8 @@ seed_task_elements = {
     "learnable_hierarchy": False,
     "preset_hierarchy": True,
     "detach_low_concepts": True,
-    "image_high_concept_num_heads": 1,
-    "image_high_concept_max_function": "sparsemax",
+    "image_high_concept_num_heads": 16,
+    "image_high_concept_max_function": "hard_gumbel",
     "image_high_concept_max_smoothing": 0.0,
     "patch_low_concept_num_heads": 1,
     "patch_low_concept_max_function": "sparsemax",
@@ -49,7 +49,7 @@ seed_task_elements = {
     "loss_high_sparsity_adaptive": False,
     "loss_high_diversity_weight": 0.0,
     "loss_aux_classification_weight": 1.0,
-    "supplementary_description": "Test ConceptualTextTopDownHierConceptPoolResNet on zero-shot dataset",
+    "supplementary_description": "Test OriTextTopDownHierConceptPoolResNet on zero-shot dataset",
     "num_epochs": 1000,
     "warmup_epochs": 10,
     "batch_size": 128,
@@ -64,30 +64,18 @@ def generate_tasks(seed_task_elements, parallel, gpus):
 
     # task 1
     new_task_element = seed_task_elements.copy()
+    new_task_element["image_high_concept_num_heads"] = 1
+    new_task_element["image_high_concept_max_function"] = "sparsemax"
     tasks.append(new_task_element)
 
     # task 2
     new_task_element = seed_task_elements.copy()
-    new_task_element["image_high_concept_max_function"] = "thresholded_softmax"
-    new_task_element["image_high_concept_threshold"] = 1/64
+    new_task_element["image_high_concept_num_heads"] = 64
     tasks.append(new_task_element)
 
     # task 3
     new_task_element = seed_task_elements.copy()
-    new_task_element["image_high_concept_max_function"] = "cum_thresholded_softmax"
-    new_task_element["image_high_concept_threshold"] = 0.05
-    tasks.append(new_task_element)
-
-    # task 4
-    new_task_element = seed_task_elements.copy()
-    new_task_element["image_high_concept_max_function"] = "cum_thresholded_softmax"
-    new_task_element["image_high_concept_threshold"] = 0.1
-    tasks.append(new_task_element)
-
-    # task 5
-    new_task_element = seed_task_elements.copy()
-    new_task_element["image_high_concept_max_function"] = "cum_thresholded_softmax"
-    new_task_element["image_high_concept_threshold"] = 0.2
+    new_task_element["image_high_concept_num_heads"] = 32
     tasks.append(new_task_element)
 
     if parallel:

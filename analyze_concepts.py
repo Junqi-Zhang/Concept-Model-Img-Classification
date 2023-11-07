@@ -45,27 +45,35 @@ config.dataset_name = "Sampled_ImageNet_800x500_200x0_Seed_6"
 # config.dataset_name = "Sampled_ImageNet"  # 'n02391049' 83
 config.update(PROVIDED_DATASETS[config.dataset_name])
 # model
-config.use_model = "OriTextHierarchicalConceptualPoolResNet"
-config.backbone_name = "resnet18"
-config.image_dim = 512
+config.use_model = "OriTextTopDownHierConceptPoolResNet"
+config.backbone_name = "resnet50"
+config.image_dim = 2048
 config.image_spacial_dim = 7
 config.text_embeds_path = "pre-trained/imagenet_zeroshot_simple_classifier.pt"
 config.text_dim = 4096
-config.detach_text_embeds = True
+config.detach_text_embeds = False
 config.concept_dim = 512
-config.num_low_concepts = 512
+config.num_low_concepts = 1024
 config.norm_low_concepts = False
-config.num_attended_low_concepts = 512
+config.num_attended_low_concepts = 1024
 config.num_high_concepts = 64
 config.norm_high_concepts = False
 config.num_attended_high_concepts = 64
-config.low_high_max_function = "hard_gumbel"
+config.low_high_max_function = "hardmax"
 config.output_high_concepts_type = "original_high"
+config.learnable_hierarchy = False
+config.preset_hierarchy = True
 config.detach_low_concepts = True
+config.image_high_concept_num_heads = 4
+config.image_high_concept_keep_head_dim = True
+config.image_high_concept_max_function = "hard_gumbel"
+config.image_high_concept_max_smoothing = 0.0
+config.image_high_concept_threshold = None
 config.patch_low_concept_num_heads = 1
 config.patch_low_concept_keep_head_dim = True
 config.patch_low_concept_max_function = "sparsemax"
 config.patch_low_concept_max_smoothing = 0.0
+config.patch_low_concept_threshold = None
 config.image_patch_num_heads = 1
 config.image_patch_keep_head_dim = True
 config.image_patch_max_function = "softmax"
@@ -85,8 +93,8 @@ config.batch_size = 128
 config.dataloader_workers = 16
 config.dataloader_pin_memory = True
 # checkpoint
-config.load_checkpoint_path = "./analyze_checkpoints/Sampled_ImageNet_800x500_200x0_Seed_6/OriTextHierarchicalConceptualPoolResNet/202310082036_on_gpu_1/best_epoch_34_0.7102_0.2515_0.1997_50_226_63_18_15_10_37.8_4.8.pt"
-config.checkpoint_desc = "hard_gumbel_original_high_detach_low_auxcls"
+config.load_checkpoint_path = "./analyze_checkpoints/Sampled_ImageNet_800x500_200x0_Seed_6/OriTextTopDownHierConceptPoolResNet/202310241538_on_gpu_3/best_epoch_45_0.7087_0.2673_0.1864_49_62_4_38_4_16_143.3_9.1.pt"
+config.checkpoint_desc = "resnet50_OriText_TopDown_4in64H_1024L"
 
 # Confirm basic settings
 print("\n"+"#"*100)
@@ -478,10 +486,14 @@ def run_epoch(desc, model, dataloader, acc_mask_idx, metric_prefix=""):
                 acc_subset = (torch.argmax(returned_dict["outputs"].data * mask,
                                            1) == targets).sum() / targets.size(0)
 
-                aux_acc = (torch.argmax(returned_dict["aux_outputs"].data,
-                                        1) == targets).sum() / targets.size(0)
-                aux_acc_subset = (torch.argmax(returned_dict["aux_outputs"].data * mask,
-                                               1) == targets).sum() / targets.size(0)
+                if returned_dict.get("aux_outputs", None) is not None:
+                    aux_acc = (torch.argmax(returned_dict["aux_outputs"].data,
+                                            1) == targets).sum() / targets.size(0)
+                    aux_acc_subset = (torch.argmax(returned_dict["aux_outputs"].data * mask,
+                                                   1) == targets).sum() / targets.size(0)
+                else:
+                    aux_acc = torch.tensor(0.0)
+                    aux_acc_subset = torch.tensor(0.0)
 
                 pfi_s10, pfi_s50, pfi_s90 = custom_quantile(
                     returned_dict=returned_dict,
@@ -681,12 +693,24 @@ for label, attention_list in image_low_concept_attention_weight_per_label.items(
     label_low_concept_attention_weight[label] = np.mean(attention_list, axis=0)
 
 
-def summarize_label_concept(label_concept_attention_weight, threshold):
+# def summarize_label_concept(label_concept_attention_weight, threshold):
+#     label_concept_dict = dict()
+#     for label, attention_weight in label_concept_attention_weight.items():
+#         indices = np.where(attention_weight >= threshold)
+#         values = attention_weight[indices]
+#         concept_dict = dict(zip(indices[0], values))
+#         label_concept_dict[label] = dict(
+#             sorted(concept_dict.items(), key=lambda x: x[1], reverse=True)
+#         )
+#     return dict(sorted(label_concept_dict.items(), key=lambda x: x[0]))
+
+
+def summarize_label_concept(label_concept_attention_weight, k):
     label_concept_dict = dict()
     for label, attention_weight in label_concept_attention_weight.items():
-        indices = np.where(attention_weight > threshold)
+        indices = np.argpartition(attention_weight, -k)[-k:]
         values = attention_weight[indices]
-        concept_dict = dict(zip(indices[0], values))
+        concept_dict = dict(zip(indices, values))
         label_concept_dict[label] = dict(
             sorted(concept_dict.items(), key=lambda x: x[1], reverse=True)
         )
@@ -694,10 +718,10 @@ def summarize_label_concept(label_concept_attention_weight, threshold):
 
 
 label_high_concept_dict = summarize_label_concept(
-    label_high_concept_attention_weight, 0.1
+    label_high_concept_attention_weight, 4
 )
 label_low_concept_dict = summarize_label_concept(
-    label_low_concept_attention_weight, 0.01
+    label_low_concept_attention_weight, 64
 )
 
 
